@@ -17,15 +17,13 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-09
 """
-from scripts.relationnetlib.relation_edge import RelationEdge
-from scripts.relationnetlib.variable_node import VariableNode
+
+from .relation_type import RelationType
+from .value_node import ValueNode
 
 
-class ValueNode:
+class RelationEdge:
 
-    def __init__(self, value_id: str, variable: VariableNode):
-        self.value_id = value_id
-        self.variable = variable
-
-    def connect_to(self, value: ValueNode, relation: RelationEdge) -> None:
+    def __init__(self, a: ValueNode, b: ValueNode, relation_type: RelationType):
         pass
+

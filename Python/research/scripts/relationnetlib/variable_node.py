@@ -17,6 +17,7 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-09
 """
+
 from typing import List, Dict
 
 from .value_node import ValueNode

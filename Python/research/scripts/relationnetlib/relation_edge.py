@@ -25,5 +25,7 @@ from .value_node import ValueNode
 class RelationEdge:
 
     def __init__(self, a: ValueNode, b: ValueNode, relation_type: RelationType):
-        pass
+        self.node_a = a
+        self.node_b = b
+        self.relation_type = relation_type
 

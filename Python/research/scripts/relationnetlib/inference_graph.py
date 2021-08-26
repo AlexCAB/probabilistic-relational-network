@@ -20,4 +20,9 @@ created: 2021-08-09
 
 
 class InferenceGraph:
-    pass
+
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return f"InferenceGraph()"

@@ -58,7 +58,7 @@ def main():
 
     rel_graph.add_outcomes([outcome_1, outcome_2, outcome_3])
 
-    # TODO Визуализация
+    rel_graph.show_relation_graph()
 
 
 

@@ -24,3 +24,6 @@ class RelationType:
     def __init__(self, relation_type_id: str):
         self.relation_type_id = relation_type_id
 
+    def __repr__(self):
+        return f"RelationType(name = {self.relation_type_id })"
+

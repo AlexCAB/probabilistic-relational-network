@@ -42,23 +42,25 @@ def main():
     outcome_1_a_1 = outcome_1.add_value_node("A", "a_1")
     outcome_1_b_2 = outcome_1.add_value_node("B", "b_2")
     outcome_1_c_3 = outcome_1.add_value_node("C", "c_3")
-    outcome_1.add_relation(outcome_1_a_1, outcome_1_b_2, "forward")
-    outcome_1.add_relation(outcome_1_b_2, outcome_1_c_3, "forward")
-    outcome_1.add_relation(outcome_1_c_3, outcome_1_a_1, "forward")
+    outcome_1.add_relation({outcome_1_a_1, outcome_1_b_2}, "forward")
+    outcome_1.add_relation({outcome_1_b_2, outcome_1_c_3}, "forward")
+    outcome_1.add_relation({outcome_1_c_3, outcome_1_a_1}, "forward")
 
     outcome_2 = rel_graph.new_sample_graph("o2", 2)
     outcome_2_a_2 = outcome_2.add_value_node("A", "a_2")
     outcome_2_b_3 = outcome_2.add_value_node("B", "b_3")
-    outcome_2.add_relation(outcome_2_a_2, outcome_2_b_3, "backward")
+    outcome_2.add_relation({outcome_2_a_2, outcome_2_b_3}, "backward")
 
     outcome_3 = rel_graph.new_sample_graph("o3", 1)
-    outcome_1_b_1 = outcome_3.add_value_node("B", "b_1")
-    outcome_1_c_1 = outcome_3.add_value_node("C", "c_3")
-    outcome_1.add_relation(outcome_1_b_1, outcome_1_c_1, "backward")
+    outcome_3_b_1 = outcome_3.add_value_node("B", "b_1")
+    outcome_3_c_1 = outcome_3.add_value_node("C", "c_3")
+    outcome_3.add_relation({outcome_3_b_1, outcome_3_c_1}, "backward")
 
     rel_graph.add_outcomes([outcome_1, outcome_2, outcome_3])
 
-    rel_graph.show_relation_graph()
+    # rel_graph.show_relation_graph()
+
+    rel_graph.show_all_outcomes()
 
 
 

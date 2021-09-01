@@ -18,9 +18,9 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-from typing import List, Dict
+from typing import List, Dict, Set
+
 from pyvis.network import Network
-import networkx as nx
 
 from .sample_graph import SampleGraph
 from .inference_graph import InferenceGraph
@@ -43,8 +43,9 @@ class RelationGraph:
         return f"RelationGraph(name = {self.relation_graph_name })"
 
     def new_sample_graph(self, sample_graph_name: str, count: int = 1) -> SampleGraph:
+        # TODO Implement count
         assert count > 0, "[RelationGraph.new_sample_graph] Sample count should be > 0"
-        return SampleGraph(sample_graph_name, self._relations, self._variables)
+        return SampleGraph(sample_graph_name, self._relations, self._variables, count)
 
     def add_outcomes(self, outcomes: List[SampleGraph]) -> None:
         start_outcome_number = len(self._outcomes)
@@ -59,32 +60,55 @@ class RelationGraph:
 
     def show_relation_graph(self,  height="1024px", width="1024px") -> None:
         variables = self._variables.values()
-        nx_graph = nx.MultiGraph()
+        net = Network(height=height, width=width)
+        edges: Dict[frozenset, Set[str]] = {}
 
         for v in variables:
-            nx_graph.add_node(v.variable_id, label=v.variable_id)
+            net.add_node(v.variable_id, label=v.variable_id)
 
-        for a in variables:
-            for b in variables:
-                if a.variable_id != b.variable_id:
-                    relations = a.get_all_relation_to(b.variable_id)
-                    if relations:
+        for var_a in variables:
+            for var_b in variables:
+                if var_a.variable_id != var_b.variable_id:
+                    for relation in var_a.get_all_relation_between(var_b.variable_id):
+                        k = frozenset([var_a.variable_id, var_b.variable_id])
+                        if k in edges:
+                            edges[k].add(relation.relation_type.relation_type_id)
+                        else:
+                            edges[k] = {relation.relation_type.relation_type_id}
 
+        for k, elation_types in edges.items():
+            net.add_edge(list(k)[0], list(k)[1], label=' | '.join(elation_types))
 
+        net.set_options('''
+          {
+            "physics": {
+              "forceAtlas2Based": {
+                "gravitationalConstant": -200,
+                "centralGravity": 0.03,
+                "springLength": 200,
+                "springConstant": 0.09
+              },
+              "solver": "forceAtlas2Based"
+            }
+          }
+        ''')
 
-                        print(f"AAAAAAAAA a = {a}")
-                        print(f"BBBBBBBBB b = {b}")
-                        print(f"RRRRRRRRR relations = {relations}")
+        net.show(f"{self.relation_graph_name}_relation_graph.html")
 
+    def show_all_outcomes(self, height="1024px", width="1024px") -> None:
+        net = Network(height=height, width=width)
 
+        for outcome in self._outcomes:
+            for v in outcome.all_values():
+                net.add_node(
+                    f"{outcome.sample_id}@{v.value_id}",
+                    label=f"{outcome.sample_id}({outcome.count})@{v.value_id}")
 
-        # TODO Как построить все рёбра соединяющие переменные
+            for e in outcome.all_edges():
+                net.add_edge(
+                    f"{outcome.sample_id}@{e.node_a.value_id}",
+                    f"{outcome.sample_id}@{e.node_b.value_id}",
+                    label=e.relation_type.relation_type_id
+                )
 
-
-
-        #
-        # nt = Network(height, width)
-        # nt.from_nx(nx_graph)
-        # nt.show(f"{self.relation_graph_name}_relation_graph.html")
-
-
+        net.show(f"{self.relation_graph_name}_all_outcomes.html")

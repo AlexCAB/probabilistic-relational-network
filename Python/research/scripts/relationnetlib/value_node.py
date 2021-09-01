@@ -28,9 +28,10 @@ if TYPE_CHECKING:
 
 class ValueNode:
 
-    def __init__(self, value_id: str, variable_id: str):
+    def __init__(self, value_id: str, variable_id: str, sample_id: str):
         self.value_id: str = value_id
         self.variable_id: str = variable_id
+        self.sample_id: str = sample_id
         self.connected_to: List['ValueNode'] = []
         self.relations: List['RelationEdge'] = []
 

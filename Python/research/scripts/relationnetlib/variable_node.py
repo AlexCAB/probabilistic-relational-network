@@ -37,10 +37,12 @@ class VariableNode:
     def add_value(self, outcome_number: int, node: ValueNode) -> None:
         self._values[(outcome_number, node.value_id)] = node
 
-    def get_all_relation_to(self, variable_id: str) -> List[RelationEdge]:
+    def get_all_relation_between(self, variable_id: str) -> List[RelationEdge]:
         relations = []
         for v in self._values.values():
             for r in v.relations:
                 if r.node_a.variable_id == self.variable_id and r.node_b.variable_id == variable_id:
+                    relations.append(r)
+                if r.node_b.variable_id == self.variable_id and r.node_a.variable_id == variable_id:
                     relations.append(r)
         return relations

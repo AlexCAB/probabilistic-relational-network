@@ -21,6 +21,7 @@ created: 2021-08-09
 from typing import Dict, List, Set
 
 from .relation_edge import RelationEdge
+from pyvis.network import Network
 
 from .relation_type import RelationType
 from .value_node import ValueNode
@@ -100,3 +101,11 @@ class SampleGraph:
 
     def all_edges(self) -> List[RelationEdge]:
         return list(self._edges.values())
+
+    def show(self, height="1024px", width="1024px") -> None:
+        net = Network(height=height, width=width)
+        for v in self._values.values():
+            net.add_node(v.value_id, label=v.value_id)
+        for e in self._edges.values():
+            net.add_edge(e.node_a.value_id, e.node_b.value_id, label=e.relation_type.relation_type_id)
+        net.show(f"{self.sample_id}_sample.html")

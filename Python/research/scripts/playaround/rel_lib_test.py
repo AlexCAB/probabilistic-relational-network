@@ -60,7 +60,10 @@ def main():
 
     # rel_graph.show_relation_graph()
 
-    rel_graph.show_all_outcomes()
+    # rel_graph.show_all_outcomes()
+
+    outcome_1.show()
+
 
 
 

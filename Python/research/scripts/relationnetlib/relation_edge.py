@@ -25,6 +25,12 @@ from .value_node import ValueNode
 class RelationEdge:
 
     def __init__(self, a: ValueNode, b: ValueNode, relation_type: RelationType):
+        assert a.variable_id != b.variable_id, \
+            f"[RelationEdge.__init__] Can't crate relation edge between values which belong to same variable, " \
+            f"variable_id = {a.value_id}, a.value_id = {a.value_id}, b.value_id = {b.value_id}"
+        assert a.sample_id == b.sample_id, \
+            f"[RelationEdge.__init__] Can't crate relation edge between values which not belong " \
+            f"to same sample graph, sample_id = {a.sample_id}, a.value_id = {a.value_id}, b.value_id = {b.value_id}"
         self.node_a: ValueNode = a
         self.node_b: ValueNode = b
         self.relation_type: RelationType = relation_type

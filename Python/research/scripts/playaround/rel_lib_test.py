@@ -17,13 +17,14 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-23
 """
+import logging
 
 from scripts.relationnetlib.relation_graph import RelationGraph
 from scripts.relationnetlib.relation_type import RelationType
 from scripts.relationnetlib.variable_node import VariableNode
 
 
-def main():
+def rendering_example():
 
     relation_types = [
         RelationType("forward"),
@@ -36,7 +37,7 @@ def main():
         VariableNode("C", ["c_1", "c_2", "c_3"])
     ]
 
-    rel_graph = RelationGraph("test_relation_graph", relation_types, variables)
+    rel_graph = RelationGraph("rendering_example", relation_types, variables)
 
     outcome_1 = rel_graph.new_sample_graph("o1", 1)
     outcome_1_a_1 = outcome_1.add_value_node("A", "a_1")
@@ -59,48 +60,32 @@ def main():
     rel_graph.add_outcomes([outcome_1, outcome_2, outcome_3])
 
     # rel_graph.show_relation_graph()
-
-    # rel_graph.show_all_outcomes()
-
-    outcome_1.show()
+    rel_graph.show_all_outcomes()
+    # outcome_1.show()
 
 
+def generate_all_outcomes_example():
+    relation_types = [
+        RelationType("A"),
+        RelationType("B"),
+        # RelationType("C")
+    ]
 
+    variables = [
+        VariableNode("K", ["k_t", "k_f"]),
+        VariableNode("L", ["l_t", "l_f"]),
+        VariableNode("M", ["m_t", "m_f"]),
+        # VariableNode("O", ["o_t", "o_f"])
+    ]
 
+    rel_graph = RelationGraph("generate_all_outcomes_example", relation_types, variables)
 
+    rel_graph.generate_all_possible_outcomes()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    rel_graph.show_all_outcomes()
 
 
 if __name__ == '__main__':
-    main()
+    logging.basicConfig(level=logging.DEBUG)
+    # rendering_example()
+    generate_all_outcomes_example()

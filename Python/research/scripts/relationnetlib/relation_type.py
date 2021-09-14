@@ -22,8 +22,9 @@ created: 2021-08-09
 class RelationType:
 
     def __init__(self, relation_type_id: str):
+        assert relation_type_id, "[RelationType.__init__] relation_type_id should not be empty string"
         self.relation_type_id = relation_type_id
 
     def __repr__(self):
-        return f"RelationType(name = {self.relation_type_id })"
+        return f"RelationType(name = {self.relation_type_id})"
 

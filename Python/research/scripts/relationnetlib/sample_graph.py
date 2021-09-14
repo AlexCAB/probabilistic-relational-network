@@ -18,6 +18,7 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
+import logging
 from typing import Dict, List, Set
 
 from .relation_edge import RelationEdge
@@ -40,6 +41,7 @@ class SampleGraph:
         self._variables: Dict[str, VariableNode] = variables
         self._values: Dict[(str, str), ValueNode] = {}  # key: (variable_id, value_id)
         self._edges: Dict[(str, str, str), RelationEdge] = {}  # key: (a.value_id, b.value_id, relation_type_id)
+        self._log = logging.getLogger('relationnetlib')
 
     def __repr__(self):
         return f"SampleGraph(sample_id = {self.sample_id})"
@@ -54,6 +56,8 @@ class SampleGraph:
             f"[SampleGraph.add_value_node] Value with value_id = {value_id} already exist"
         vn = ValueNode(value_id, variable_id, self.sample_id)
         self._values[(variable_id, value_id)] = vn
+        self._log.debug(
+            f"[SampleGraph.add_value_node] Added for variable_id = {variable_id}, value_id = {value_id}")
         return vn
 
     def add_relation(self, nodes: Set[ValueNode], relation_type_id: str) -> RelationEdge:
@@ -94,6 +98,8 @@ class SampleGraph:
         node_a.connect_to(node_b, re)
         node_b.connect_to(node_a, re)
         self._edges[(node_a.value_id, node_b.value_id, relation_type_id)] = re
+        self._log.debug(
+            f"[SampleGraph.add_relation] Added for node_a = {node_a}, node_b = {node_b}, ")
         return re
 
     def all_values(self) -> List[ValueNode]:
@@ -102,6 +108,15 @@ class SampleGraph:
     def all_edges(self) -> List[RelationEdge]:
         return list(self._edges.values())
 
+    def have_value(self, variable_id: str, value_id: str) -> bool:
+        return (variable_id, value_id) in self._values
+
+    def get_value(self, variable_id: str, value_id: str) -> ValueNode:
+        assert (variable_id, value_id) in self._values, \
+            f"[SampleGraph.get_value] Not found value for variable_id = {variable_id} and value_id = {value_id}" \
+            f"in sample_id = {self.sample_id}"
+        return self._values[(variable_id, value_id)]
+
     def show(self, height="1024px", width="1024px") -> None:
         net = Network(height=height, width=width)
         for v in self._values.values():
@@ -109,3 +124,5 @@ class SampleGraph:
         for e in self._edges.values():
             net.add_edge(e.node_a.value_id, e.node_b.value_id, label=e.relation_type.relation_type_id)
         net.show(f"{self.sample_id}_sample.html")
+        self._log.debug(
+            f"[SampleGraph.show] node count = {len(net.get_nodes())}, edge count = {len(net.get_edges())}")

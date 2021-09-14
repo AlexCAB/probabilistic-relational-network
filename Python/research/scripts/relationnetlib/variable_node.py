@@ -27,6 +27,10 @@ from .value_node import ValueNode
 class VariableNode:
 
     def __init__(self, variable_id: str, value_ids: List[str]):
+        assert variable_id, f"[VariableNode.__init__] variable_id should not be empty string"
+        assert value_ids, f"[VariableNode.__init__] value_ids should not be empty list"
+        assert len(set(value_ids)) == len(value_ids), \
+            f"[VariableNode.__init__] value_ids be list of unique ids"
         self.variable_id = variable_id
         self.value_ids = value_ids
         self._values: Dict[(int, str), ValueNode] = {}  # key: (outcome_number, value_id)

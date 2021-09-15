@@ -38,6 +38,9 @@ class ValueNode:
     def __repr__(self):
         return f"ValueNode(value_id = {self.value_id }, variable_id = {self.variable_id})"
 
+    def get_id(self) -> (str, str):
+        return self.variable_id, self.value_id
+
     def connect_to(self, value: ValueNode, relation: 'RelationEdge') -> None:
         assert value.value_id != self.value_id, \
             f"[ValueNode.connect_to] Can't connect to myself."

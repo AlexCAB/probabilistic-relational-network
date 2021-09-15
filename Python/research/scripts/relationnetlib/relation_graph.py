@@ -18,6 +18,7 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
+import copy
 import logging
 from typing import List, Dict, Set
 
@@ -40,8 +41,8 @@ class RelationGraph:
         assert len(set([v.variable_id for v in variables])) == len(variables), \
             "[RelationGraph.__init__] variables parameter should be a list with unique variables"
         self.relation_graph_name = relation_graph_name
-        self._relations: Dict[str, RelationType] = {r.relation_type_id: r for r in relations}
-        self._variables: Dict[str, VariableNode] = {v.variable_id: v for v in variables}
+        self._relations: Dict[str, RelationType] = {r.relation_type_id: copy.deepcopy(r) for r in relations}
+        self._variables: Dict[str, VariableNode] = {v.variable_id: copy.deepcopy(v) for v in variables}
         self._outcomes: List[SampleGraph] = []
         self._log = logging.getLogger('relationnetlib')
         self._log.debug(f"[RelationGraph.__init__] Created relation graph '{relation_graph_name}'")
@@ -49,11 +50,17 @@ class RelationGraph:
     def __repr__(self):
         return f"RelationGraph(name = {self.relation_graph_name })"
 
+    def get_relation_types(self) -> Dict[str, RelationType]:
+        return self._relations
+
+    def get_variable_nodes(self) -> Dict[str, VariableNode]:
+        return self._variables
+
     def new_sample_graph(self, sample_graph_name: str, count: int = 1) -> SampleGraph:
         assert count > 0, "[RelationGraph.new_sample_graph] Sample count should be > 0"
         self._log.debug(
             f"[RelationGraph.new_sample_graph] sample_graph_name = {sample_graph_name}, count = {count}")
-        return SampleGraph(sample_graph_name, self._relations, self._variables, count)
+        return SampleGraph(sample_graph_name, count, self)
 
     def add_outcomes(self, outcomes: List[SampleGraph]) -> None:
         start_outcome_number = len(self._outcomes)
@@ -111,7 +118,7 @@ class RelationGraph:
             for v in outcome.all_values():
                 net.add_node(
                     f"{outcome.sample_id}@{v.value_id}",
-                    label=f"{outcome.sample_id}({outcome.count})@{v.value_id}")
+                    label=f"{outcome.sample_id}({outcome.count})@{v.variable_id}({v.value_id})")
 
             for e in outcome.all_edges():
                 net.add_edge(
@@ -129,8 +136,9 @@ class RelationGraph:
         pass
 
     def generate_all_possible_outcomes(self) -> None:
+        variables = list(self._variables.values())
         relation_types = list(self._relations.values())
-        node_ids = [(v.variable_id, v.value_ids[0]) for v in self._variables.values()]
+        node_ids = [(v.variable_id, v.value_ids[0]) for v in variables]
 
         self._log.debug(
             f"[RelationGraph.generate_all_possible_outcomes] len(node_ids) = {len(node_ids)}, "
@@ -159,25 +167,20 @@ class RelationGraph:
             edge_indices.append(index_acc.copy())
 
         self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] len(edge_indices) = {len(edge_indices)}")
-
-
-
-        # TODO: Далле построить исходы для всех значений а не только для первых.
-
-
-
+        
         outcomes = []
+        outcome_count = 1
 
-        for i in range(0, len(node_ids)):
-            variable_id, value_id = node_ids[i]
-            sg = self.new_sample_graph(f"O_{i}")
+        for variable_id, value_id in node_ids:
+            sg = self.new_sample_graph(f"O_{outcome_count}")
+            outcome_count += 1
             sg.add_value_node(variable_id, value_id)
             outcomes.append(sg)
 
-        for i in range(1, len(edge_indices) + 1):
+        for index in edge_indices:
 
-            index = edge_indices[i - 1]
-            sg = self.new_sample_graph(f"O_{i + len(node_ids)}")
+            sg = self.new_sample_graph(f"O_{outcome_count}")
+            outcome_count += 1
 
             for j in range(0, len(index)):
                 if index[j] >= 0:
@@ -192,10 +195,39 @@ class RelationGraph:
                     rel_type = relation_types[index[j]]
                     nodes = [sg.get_value(variable_id, value_id)
                              for variable_id, value_id in [node_a_id, node_b_id]]
-                    sg.add_relation(set(nodes), rel_type.relation_type_id)
+                    sg.add_relation(set(nodes), rel_type)
 
             outcomes.append(sg)
 
-        self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] len(outcomes) = {len(outcomes)}")
+        self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] Init len(outcomes) = {len(outcomes)}")
+
+        var_len = len(variables)
+        val_i, var_j = 1, 0
+        cloned_outcomes = []
+
+        while var_j < var_len:
+            var = variables[var_j]
+            if len(var.value_ids) > 1:
+                val_id = var.value_ids[val_i]
+
+                for o in outcomes:
+                    if o.have_variable_value(var.variable_id):
+                        cloned_outcomes.append(
+                            o.clone(f"O_{outcome_count}", values_to_replace={var.variable_id: val_id}))
+                        outcome_count += 1
+
+                if val_i >= (len(var.value_ids) - 1):
+                    var_j += 1
+                    val_i = 0
+                    outcomes.extend(cloned_outcomes)
+                    cloned_outcomes = []
+                val_i += 1
+
+            else:
+                var_j += 1
+
+        self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}")
+
+        # TODO Validate outcomes duplication
 
         self.add_outcomes(outcomes)

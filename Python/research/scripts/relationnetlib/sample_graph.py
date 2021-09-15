@@ -28,19 +28,24 @@ from .relation_type import RelationType
 from .value_node import ValueNode
 from .variable_node import VariableNode
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .relation_graph import RelationGraph
+
 
 class SampleGraph:
 
     def __init__(
-            self, sample_id: str, relations: Dict[str, RelationType], variables: Dict[str, VariableNode], count: int):
+            self, sample_id: str, count: int, relation_graph: 'RelationGraph'):
         assert sample_id, "[SampleGraph.__init__] sample_id should not be empty string"
         assert count > 0, "[SampleGraph.__init__] count should be > 0"
         self.sample_id: str = sample_id
         self.count: int = count
-        self._relations: Dict[str, RelationType] = relations
-        self._variables: Dict[str, VariableNode] = variables
+        self._relation_graph: 'RelationGraph' = relation_graph
+        self._relations: Dict[str, RelationType] = relation_graph.get_relation_types()
+        self._variables: Dict[str, VariableNode] = relation_graph.get_variable_nodes()
         self._values: Dict[(str, str), ValueNode] = {}  # key: (variable_id, value_id)
-        self._edges: Dict[(str, str, str), RelationEdge] = {}  # key: (a.value_id, b.value_id, relation_type_id)
+        self._edges: Dict[(frozenset[(str, str)], str), RelationEdge] = {}  # key: (node ids, relation_type_id)
         self._log = logging.getLogger('relationnetlib')
 
     def __repr__(self):
@@ -60,17 +65,17 @@ class SampleGraph:
             f"[SampleGraph.add_value_node] Added for variable_id = {variable_id}, value_id = {value_id}")
         return vn
 
-    def add_relation(self, nodes: Set[ValueNode], relation_type_id: str) -> RelationEdge:
+    def add_relation(self, nodes: Set[ValueNode], relation_type: RelationType) -> RelationEdge:
         assert len(nodes) == 2, \
             f"[SampleGraph.add_relation] Set of nodes to be connected should have size exactly 2, " \
             f"but got {len(nodes)}"
         node_a = list(nodes)[0]
         node_b = list(nodes)[1]
-        assert relation_type_id in self._relations, \
-            f"[SampleGraph.add_relation] Unknown relation_type_id = {relation_type_id}, " \
+        assert relation_type.relation_type_id in self._relations, \
+            f"[SampleGraph.add_relation] Unknown relation_type_id = {relation_type.relation_type_id}, " \
             f"acceptable: {self._relations.keys()}"
-        assert relation_type_id in self._relations, \
-            f"[SampleGraph.add_relation] Unknown relation_type_id = {relation_type_id}, " \
+        assert relation_type.relation_type_id in self._relations, \
+            f"[SampleGraph.add_relation] Unknown relation_type_id = {relation_type.relation_type_id}, " \
             f"acceptable: {self._relations.keys()}"
         assert node_a.variable_id in self._variables, \
             f"[SampleGraph.add_relation] Unknown 'a' value {node_a}, not found variable_id = {node_a.variable_id}"
@@ -85,8 +90,8 @@ class SampleGraph:
         assert node_a.variable_id != node_b.variable_id, \
             f"[SampleGraph.add_relation] It is impossible to connect two values belong to same variable, " \
             f"variable_id = {node_a.variable_id}"
-        assert (node_a.value_id, node_b.value_id, relation_type_id) not in self._edges, \
-            f"[SampleGraph.add_relation] Relation '{relation_type_id}' already exist in " \
+        assert (frozenset([node_a.get_id, node_b.get_id]), relation_type.relation_type_id) not in self._edges, \
+            f"[SampleGraph.add_relation] Relation '{relation_type.relation_type_id}' already exist in " \
             f"between node {node_a} and node {node_b}"
         assert node_a.sample_id == self.sample_id, \
             f"[SampleGraph.add_relation] Value a with a.sample_id = '{node_a.sample_id}' " \
@@ -94,10 +99,10 @@ class SampleGraph:
         assert node_b.sample_id == self.sample_id, \
             f"[SampleGraph.add_relation] Value b with b.sample_id = '{node_b.sample_id}' " \
             f"not belongs to this sample with self.sample_id = '{self.sample_id}'"
-        re = RelationEdge(node_a, node_b, self._relations[relation_type_id])
+        re = RelationEdge(node_a, node_b, relation_type)
         node_a.connect_to(node_b, re)
         node_b.connect_to(node_a, re)
-        self._edges[(node_a.value_id, node_b.value_id, relation_type_id)] = re
+        self._edges[frozenset([node_a.get_id, node_b.get_id])] = re
         self._log.debug(
             f"[SampleGraph.add_relation] Added for node_a = {node_a}, node_b = {node_b}, ")
         return re
@@ -126,3 +131,39 @@ class SampleGraph:
         net.show(f"{self.sample_id}_sample.html")
         self._log.debug(
             f"[SampleGraph.show] node count = {len(net.get_nodes())}, edge count = {len(net.get_edges())}")
+
+    def have_variable_value(self, variable_id: str) -> bool:
+        return variable_id in [vid for vid, _ in self._values.keys()]
+
+    def clone(
+            self,
+            sample_id: str,
+            count: int = 1,
+            values_to_replace: Dict[str, str] = None
+    ) -> 'SampleGraph':
+        """
+        Clone this SampleGraph with replacing of values in selected variables
+        :param sample_id: ID for new SampleGraph
+        :param count: count for new SampleGraph
+        :param values_to_replace: # Dict{variable_id for which value need to be replaced, value_id new value ID}
+        :return: new SampleGraph
+        """
+        sg = SampleGraph(sample_id, count, self._relation_graph)
+        vtr = values_to_replace if values_to_replace else {}
+
+        for v in self._values.values():
+            sg.add_value_node(
+                v.variable_id,
+                vtr[v.variable_id] if v.variable_id in vtr else v.value_id)
+
+        for e in self._edges.values():
+            def get_node(n: ValueNode) -> ValueNode:
+                return sg.add_value_node(
+                    n.variable_id,
+                    vtr[n.variable_id] if n.variable_id in vtr else n.value_id)
+            sg.add_relation({get_node(e.node_a), get_node(e.node_b)}, e.relation_type)
+
+        self._log.debug(
+            f"[SampleGraph.clone] Cloned from this sample_id = {self.sample_id} to new sample_id = {sample_id}")
+
+        return sg

@@ -49,3 +49,6 @@ class ValueNode:
             f"variable_id = {self.variable_id}"
         self.connected_to.append(value)
         self.relations.append(relation)
+
+    def is_equivalent(self, other: ValueNode) -> bool:
+        return (self.variable_id == other.variable_id) and (self.value_id == other.value_id)

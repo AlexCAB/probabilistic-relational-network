@@ -19,7 +19,7 @@ created: 2021-08-09
 """
 
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple, Any
 
 from .relation_edge import RelationEdge
 from pyvis.network import Network
@@ -60,7 +60,7 @@ class SampleGraph:
         assert value_id not in self._values, \
             f"[SampleGraph.add_value_node] Value with value_id = {value_id} already exist"
         vn = ValueNode(value_id, variable_id, self.sample_id)
-        self._values[(variable_id, value_id)] = vn
+        self._values[vn.get_id()] = vn
         self._log.debug(
             f"[SampleGraph.add_value_node] Added for variable_id = {variable_id}, value_id = {value_id}")
         return vn
@@ -102,7 +102,7 @@ class SampleGraph:
         re = RelationEdge(node_a, node_b, relation_type)
         node_a.connect_to(node_b, re)
         node_b.connect_to(node_a, re)
-        self._edges[frozenset([node_a.get_id, node_b.get_id])] = re
+        self._edges[re.get_id()] = re
         self._log.debug(
             f"[SampleGraph.add_relation] Added for node_a = {node_a}, node_b = {node_b}, ")
         return re
@@ -121,6 +121,9 @@ class SampleGraph:
             f"[SampleGraph.get_value] Not found value for variable_id = {variable_id} and value_id = {value_id}" \
             f"in sample_id = {self.sample_id}"
         return self._values[(variable_id, value_id)]
+
+    def get_hash(self) -> frozenset[Any]:
+        return frozenset(self._values.keys()).union(frozenset(self._edges.keys()))
 
     def show(self, height="1024px", width="1024px") -> None:
         net = Network(height=height, width=width)
@@ -167,3 +170,29 @@ class SampleGraph:
             f"[SampleGraph.clone] Cloned from this sample_id = {self.sample_id} to new sample_id = {sample_id}")
 
         return sg
+
+    def validate(self) -> List[str]:  # Returns list of error messages
+        if len(self._values) == 1 and len(self._edges) == 0:
+            return []
+
+        edges = list(self._edges.values())
+        start_node = edges[0].node_a
+
+        def trace_graph(start: ValueNode, traced: Set[Tuple[str, str]]) -> Set[Tuple[str, str]]:
+            neighbors = [e.end_node_for_start(start) for e in edges if e.have_node(start)]
+            for neighbor in neighbors:
+                if neighbor.get_id() not in traced:
+                    traced.add(neighbor.get_id())
+                    traced.update(trace_graph(neighbor, traced))
+            return traced
+
+        traced_nodes_ids = trace_graph(start_node, {start_node.get_id()})
+        actual_node_ids = set(self._values.keys())
+
+        if traced_nodes_ids != actual_node_ids:
+            return [f"Graph is not linked, traced_nodes_ids = {traced_nodes_ids}, actual_node_ids = {actual_node_ids}"]
+        else:
+            return []
+
+    def is_equivalent(self, other: 'SampleGraph') -> bool:
+        return self.get_hash() == other.get_hash()

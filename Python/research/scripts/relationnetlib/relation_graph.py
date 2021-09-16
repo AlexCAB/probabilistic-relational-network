@@ -64,6 +64,9 @@ class RelationGraph:
 
     def add_outcomes(self, outcomes: List[SampleGraph]) -> None:
         start_outcome_number = len(self._outcomes)
+        for o in outcomes:
+            errors = o.validate()
+            assert not errors, f"[RelationGraph.add_outcomes] Invalid outcome found: {o}, errors: {errors}"
         self._outcomes.extend(outcomes)
         for i in range(0, len(outcomes)):
             for v in outcomes[i].all_values():
@@ -167,7 +170,7 @@ class RelationGraph:
             edge_indices.append(index_acc.copy())
 
         self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] len(edge_indices) = {len(edge_indices)}")
-        
+
         outcomes = []
         outcome_count = 1
 
@@ -228,6 +231,15 @@ class RelationGraph:
 
         self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}")
 
-        # TODO Validate outcomes duplication
+        o_i, o_j = 0, 0
+
+        while o_j < len(outcomes):
+            assert o_i == o_j or not outcomes[o_i].is_equivalent(outcomes[o_j]), \
+                f"[RelationGraph.generate_all_possible_outcomes] Duplicate outcomes " \
+                f"found: {outcomes[o_i]} and {outcomes[o_j]}"
+            o_i += 1
+            if o_i >= len(outcomes):
+                o_j += 1
+                o_i = 0
 
         self.add_outcomes(outcomes)

@@ -70,14 +70,14 @@ def rendering_example():
 def generate_all_outcomes_example():
     relation_types = [
         RelationType("A"),
-        # RelationType("B"),
+        RelationType("B"),
         # RelationType("C")
     ]
 
     variables = [
         VariableNode("K", ["k_t", "k_f", "k_n"]),
         VariableNode("L", ["l_t", "l_f"]),
-        # VariableNode("M", ["m_t", "m_f"]),
+        VariableNode("M", ["m_t", "m_f"]),
         # VariableNode("O", ["o_t", "o_f"])
     ]
 

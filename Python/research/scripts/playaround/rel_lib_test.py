@@ -70,15 +70,16 @@ def rendering_example():
 def generate_all_outcomes_example():
     relation_types = [
         RelationType("A"),
-        RelationType("B"),
+        # RelationType("B"),
         # RelationType("C")
     ]
 
     variables = [
-        VariableNode("K", ["k_t", "k_f", "k_n"]),
-        VariableNode("L", ["l_t", "l_f"]),
-        VariableNode("M", ["m_t", "m_f"]),
-        # VariableNode("O", ["o_t", "o_f"])
+        VariableNode("K", ["k_t"]),
+        VariableNode("L", ["l_t"]),
+        VariableNode("M", ["m_t"]),
+        VariableNode("O", ["o_t"]),
+        # VariableNode("P", ["p_t"]),
     ]
 
     rel_graph = RelationGraph("generate_all_outcomes_example", relation_types, variables)

@@ -107,8 +107,11 @@ class SampleGraph:
             f"[SampleGraph.add_relation] Added for node_a = {node_a}, node_b = {node_b}, ")
         return re
 
-    def all_values(self) -> List[ValueNode]:
+    def get_all_values(self) -> List[ValueNode]:
         return list(self._values.values())
+
+    def get_number_of_values(self) -> int:
+        return len(self._values)
 
     def all_edges(self) -> List[RelationEdge]:
         return list(self._edges.values())

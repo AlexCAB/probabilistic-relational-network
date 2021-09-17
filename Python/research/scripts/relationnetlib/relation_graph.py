@@ -62,6 +62,9 @@ class RelationGraph:
             f"[RelationGraph.new_sample_graph] sample_graph_name = {sample_graph_name}, count = {count}")
         return SampleGraph(sample_graph_name, count, self)
 
+    def get_number_of_outcomes(self) -> int:
+        return len(self._outcomes)
+
     def add_outcomes(self, outcomes: List[SampleGraph]) -> None:
         start_outcome_number = len(self._outcomes)
         for o in outcomes:
@@ -69,7 +72,7 @@ class RelationGraph:
             assert not errors, f"[RelationGraph.add_outcomes] Invalid outcome found: {o}, errors: {errors}"
         self._outcomes.extend(outcomes)
         for i in range(0, len(outcomes)):
-            for v in outcomes[i].all_values():
+            for v in outcomes[i].get_all_values():
                 self._variables[v.variable_id].add_value(start_outcome_number + i, v)
         self._log.debug(f"[RelationGraph.add_outcomes] len(outcomes) = {len(outcomes)}")
 
@@ -118,7 +121,7 @@ class RelationGraph:
         net = Network(height=height, width=width)
 
         for outcome in self._outcomes:
-            for v in outcome.all_values():
+            for v in outcome.get_all_values():
                 net.add_node(
                     f"{outcome.sample_id}@{v.value_id}",
                     label=f"{outcome.sample_id}({outcome.count})@{v.variable_id}({v.value_id})")
@@ -161,7 +164,7 @@ class RelationGraph:
         index_acc = [-1 for _ in range(0, n_edges)]
         edge_indices = []
 
-        while set([i < rel_lim for i in index_acc]) != {False}:
+        while set([i < rel_lim for i in index_acc]) != {False} and n_edges != 0:
             i = 0
             while index_acc[i] >= rel_lim and i < n_edges:
                 index_acc[i] = -1
@@ -173,6 +176,7 @@ class RelationGraph:
 
         outcomes = []
         outcome_count = 1
+        not_connected_count = 0
 
         for variable_id, value_id in node_ids:
             sg = self.new_sample_graph(f"O_{outcome_count}")
@@ -182,25 +186,45 @@ class RelationGraph:
 
         for index in edge_indices:
 
-            sg = self.new_sample_graph(f"O_{outcome_count}")
-            outcome_count += 1
+            active_edges = [edge_ids[j] for j in range(0, len(index)) if index[j] >= 0]
+            active_nodes = set([n for e in active_edges for n in e])
+            connected_nodes_ids = {next(iter(active_nodes))}  # Start node
+            next_step = True
+            while next_step:
+                next_step = False
+                for node_a, node_b in active_edges:
+                    if node_a in connected_nodes_ids or node_b in connected_nodes_ids:
+                        next_step = True
+                        active_edges.remove((node_a, node_b))
+                    if node_a in connected_nodes_ids:
+                        connected_nodes_ids.add(node_b)
+                    elif node_b in connected_nodes_ids:
+                        connected_nodes_ids.add(node_a)
 
-            for j in range(0, len(index)):
-                if index[j] >= 0:
-                    node_a_id, node_b_id = edge_ids[j]
-                    for variable_id, value_id in [node_a_id, node_b_id]:
-                        if not sg.have_value(variable_id, value_id):
-                            sg.add_value_node(variable_id, value_id)
+            if connected_nodes_ids == active_nodes:  # check if graph is connected
 
-            for j in range(0, len(index)):
-                if index[j] >= 0:
-                    node_a_id, node_b_id = edge_ids[j]
-                    rel_type = relation_types[index[j]]
-                    nodes = [sg.get_value(variable_id, value_id)
-                             for variable_id, value_id in [node_a_id, node_b_id]]
-                    sg.add_relation(set(nodes), rel_type)
+                sg = self.new_sample_graph(f"O_{outcome_count}")
+                outcome_count += 1
 
-            outcomes.append(sg)
+                for j in range(0, len(index)):
+                    if index[j] >= 0:
+                        node_a_id, node_b_id = edge_ids[j]
+                        for variable_id, value_id in [node_a_id, node_b_id]:
+                            if not sg.have_value(variable_id, value_id):
+                                sg.add_value_node(variable_id, value_id)
+
+                for j in range(0, len(index)):
+                    if index[j] >= 0:
+                        node_a_id, node_b_id = edge_ids[j]
+                        rel_type = relation_types[index[j]]
+                        nodes = [sg.get_value(variable_id, value_id)
+                                 for variable_id, value_id in [node_a_id, node_b_id]]
+                        sg.add_relation(set(nodes), rel_type)
+
+                outcomes.append(sg)
+
+            else:
+                not_connected_count += 1
 
         self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] Init len(outcomes) = {len(outcomes)}")
 
@@ -229,7 +253,16 @@ class RelationGraph:
             else:
                 var_j += 1
 
-        self._log.debug(f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}")
+        outcome_size_count = {}
+        for n in [o.get_number_of_values() for o in outcomes]:
+            if n in outcome_size_count:
+                outcome_size_count[n] += 1
+            else:
+                outcome_size_count[n] = 1
+
+        self._log.debug(
+            f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
+            f"not_connected_count = {not_connected_count}, outcome_size_count = {outcome_size_count}")
 
         o_i, o_j = 0, 0
 

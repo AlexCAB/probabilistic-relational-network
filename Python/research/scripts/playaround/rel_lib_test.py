@@ -79,7 +79,10 @@ def generate_all_outcomes_example():
         VariableNode("L", ["l_t"]),
         VariableNode("M", ["m_t"]),
         VariableNode("O", ["o_t"]),
-        # VariableNode("P", ["p_t"]),
+        VariableNode("P", ["p_t"]),
+        VariableNode("R", ["r_t"]),
+        VariableNode("S", ["s_t"]),
+        VariableNode("T", ["t_t"]),
     ]
 
     rel_graph = RelationGraph("generate_all_outcomes_example", relation_types, variables)
@@ -90,6 +93,6 @@ def generate_all_outcomes_example():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     # rendering_example()
     generate_all_outcomes_example()

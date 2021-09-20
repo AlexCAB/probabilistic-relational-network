@@ -264,6 +264,10 @@ class RelationGraph:
             f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
             f"not_connected_count = {not_connected_count}, outcome_size_count = {outcome_size_count}")
 
+        print(
+            f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
+            f"not_connected_count = {not_connected_count}, outcome_size_count = {outcome_size_count}")
+
         o_i, o_j = 0, 0
 
         while o_j < len(outcomes):

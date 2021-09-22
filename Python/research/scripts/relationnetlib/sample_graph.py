@@ -113,6 +113,9 @@ class SampleGraph:
     def get_number_of_values(self) -> int:
         return len(self._values)
 
+    def get_number_of_edges(self) -> int:
+        return len(self._edges)
+
     def all_edges(self) -> List[RelationEdge]:
         return list(self._edges.values())
 

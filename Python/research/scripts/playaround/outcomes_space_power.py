@@ -51,110 +51,56 @@ def outcomes_space_power():
 
     def calc_number_of_outcomes(n_gen: int, n_variables: int, n_values: int, n_rel_type: int) -> float:
 
-        # def A001187(n):
-        #    if n == 0: return 1
-        #    return 2^(n*(n-1)/2)- sum(k*binomial(n, k)*2^((n-k)*(n-k-1)/2)*A001187(k) for k in (1..n-1))/n
-
-        # def comb(n: int, k: int):
-
-        # n = 5
+        # def c_k(k: int) -> float:
+        #     if k == 0:
+        #         return 1
+        #     else:
+        #         return (2 ** (k * ((k - 1) / 2))) - \
+        #                (sum([i * math.comb(k, i) * (2 ** ((k - i) * ((k - i - 1) / 2))) *
+        #                      c_k(i) for i in range(1, k)]) / k)
         #
-        # cs = [1, 1, 4, 38]
+        # def n_k(n: int) -> float:
+        #     return sum([math.comb(n, k) * c_k(k) for k in range(1, n + 1)])
         #
-        # s = 0
+        # n_for_ver = n_k(n_variables)
+        #
+        # n_for_rel = n_rel_type ** n_for_ver
+        #
+        # n_for_val = 0
+        #
+        # print(f"GGGGGG n_gen = {n_gen}, n_for_ver = {n_for_ver}, n_for_rel = {n_for_rel}, n_for_val = {n_for_val}")
+
+        n_r = 1
+        n_v = 4
 
         def c_k(k: int) -> float:
             if k == 0:
                 return 1
             else:
-                return (2 ** (k * ((k - 1) / 2))) - \
-                       (sum([i * math.comb(k, i) * (2 ** ((k - i) * ((k - i - 1) / 2))) *
-                             c_k(i) for i in range(1, k)]) / k)
+                st = 0
+                for i in range(1, k):
+                    g = i * math.comb(k, i) * ((n_r + 1) ** ((k - i) * ((k - i - 1) / 2))) * c_k(i)
+                    st += g
+                r = ((n_r + 1) ** (k * ((k - 1) / 2))) - (st / k)
+                return r
 
         def n_k(n: int) -> float:
-            return sum([math.comb(n, k) * c_k(k) for k in range(1, n + 1)])
+            sk = 0
+            for k in range(1, n + 1):
+                ck = c_k(k) * (n_v ** k)
+                t = (math.comb(n, k) * ck)
+                # print(f"k = {k}, ck = {ck}, t = {t}")
+                sk += t
+            return sk
 
-        for n in range(0, 9):
-            n_k(n)
-            print(f"n_k({n}) = {n_k(n)}")
-
-
-
-
-
-        # c_n = (2 ** (n * ((n - 1) / 2))) - (s / n)
-        #
-        # print(f"GGGGG c_n = {c_n}, s = {s}, math.comb(n, 2) = {math.comb(n, 2)}, (2 ** math.comb(n, 2) = {2 ** math.comb(n, 2)}, s / 2 = {s / 2}")
+        for n in range(0, 5):
+            print(f"RRRRR n = {n}, n_k(n) = {n_k(n)}")
 
 
 
 
 
 
-
-        # print(f"!!!! math.comb(3, 1) = {math.comb(3, 1)}")
-        #
-        #
-        # def C_k(k: int, C: List[int]) -> List[int]:
-        #     print(f"I k = {k}, C = {C}")
-        #     s = 0
-        #     for i in range(0, k - 1):
-        #         print(
-        #             f"range i = {i}, k  = {k}, math.comb(k, i) = {math.comb(k, i)}, math.comb(1, 2) = {math.comb(1, 2)}"
-        #             f"C[i] = { C[i]}, math.comb(k - i, 2) = {math.comb(k - i, 2)}, "
-        #             f"math.comb(k, i) * C[i] * 2 * math.comb(k - i, 2) = {math.comb(k, i) * C[i] * 2 * math.comb(k - i, 2)}")
-        #         s += math.comb(k, i) * C[i] * 2 * math.comb(k - i, 2)
-        #     print(f"GGG s = {s}, math.comb(k + 1, 2) = {2 * math.comb(k + 1, 2)}")
-        #     if k <= 8:
-        #         C.append((2 * math.comb(k + 1, 2)) - s)
-        #         C_k(k + 1, C)
-        #     else:
-        #         return C
-        #
-        # r = C_k(1, [1])
-        #
-        # print(f"DDDDDDDDDDDDDDDDDDDDD r = {r}")
-
-
-
-
-
-
-
-        #
-        #
-        # def calc_for_variables(n_v: int) -> float:
-        #     return ((n_rel_type + 1) ** ((n_v * (n_v - 1)) / 2)) + n_v - 1
-        #
-        # n_for_variables = calc_for_variables(n_variables)
-        #
-        # n_subtract = calc_for_variables(n_variables - 1)
-        # n_to_add = (n_for_variables - n_subtract)
-        # space_power = 0
-        #
-        # print(
-        #     f"n_gen = {n_gen}, n_variables = {n_variables}, n_values = {n_values}, n_rel_type = {n_rel_type}, "
-        #     f"n_for_variables = {n_for_variables},  n_subtract = {n_subtract}, n_to_add = {n_to_add}")
-        #
-        #
-        # for i in range(0, n_values - 1):
-        #     print(f"RRRR i = {i}")
-        #     if i == 0:
-        #         space_power = n_for_variables
-        #     if i == 1:
-        #         space_power += n_to_add
-        #     if i == 2:
-        #         space_power += n_to_add
-        #     if i == 3:
-        #         space_power += n_to_add
-        #
-        # space_power *= n_variables
-        #
-        # print(
-        #     f"n_gen = {n_gen}, space_power = {space_power}, n_variables = {n_variables}, n_values = {n_values}, n_rel_type = {n_rel_type}, "
-        #     f"n_for_variables = {n_for_variables},  n_subtract = {n_subtract}, n_to_add = {n_to_add}")
-
-        # space_power = (n_values * (n_for_variables - n_subtract)) ** n_variables
 
         # log.info(
         #     f"[calc_number_of_outcomes] n_variables = {n_variables}, n_values = {n_values}, "
@@ -174,8 +120,8 @@ def outcomes_space_power():
     #             log.info(
     #                 f"[make_relation_graph] n_var = {n_var},  n_val = {n_val}, n_rel = {n_rel}, "
     #                 f"n_generated = {n_generated}, n_counted = {n_counted}")
-    n_generated = make_relation_graph_and_count_outcomes(3, 1, 1)
-    n_counted = calc_number_of_outcomes(n_generated, 3, 1, 1)
+    n_generated = 0 # make_relation_graph_and_count_outcomes(4, 7, 1)
+    n_counted = calc_number_of_outcomes(n_generated, 5, 1, 2)
 
 
 

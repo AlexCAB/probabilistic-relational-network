@@ -253,20 +253,29 @@ class RelationGraph:
             else:
                 var_j += 1
 
-        outcome_size_count = {}
-        for n in [o.get_number_of_values() for o in outcomes]:
-            if n in outcome_size_count:
-                outcome_size_count[n] += 1
+        outcome_node_count, outcome_edge_count = {}, {}
+        for o in outcomes:
+            nc = o.get_number_of_values()
+            if nc in outcome_node_count:
+                outcome_node_count[nc] += 1
             else:
-                outcome_size_count[n] = 1
+                outcome_node_count[nc] = 1
+            ec = o.get_number_of_edges()
+            if ec in outcome_edge_count:
+                outcome_edge_count[ec] += 1
+            else:
+                outcome_edge_count[ec] = 1
 
         self._log.debug(
             f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
-            f"not_connected_count = {not_connected_count}, outcome_size_count = {outcome_size_count}")
+            f"not_connected_count = {not_connected_count}, outcome_node_count = {outcome_node_count}, "
+            f"outcome_edge_count = {outcome_edge_count}")
 
+        # TODO to remove print
         print(
             f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
-            f"not_connected_count = {not_connected_count}, outcome_size_count = {outcome_size_count}")
+            f"not_connected_count = {not_connected_count}, outcome_node_count = {outcome_node_count}, "
+            f"outcome_edge_count = {outcome_edge_count}")
 
         o_i, o_j = 0, 0
 

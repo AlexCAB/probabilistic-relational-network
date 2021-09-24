@@ -144,6 +144,13 @@ class SampleGraph:
     def have_variable_value(self, variable_id: str) -> bool:
         return variable_id in [vid for vid, _ in self._values.keys()]
 
+    def get_value_id_for_variable(self, variable_id: str) -> bool:
+        found_val_ids = [val_id for var_id, val_id in self._values.keys() if var_id == variable_id]
+        assert len(found_val_ids) == 1, \
+            f"[SampleGraph.get_value_id_for_variable] Expect to find exactly one value for " \
+            f"variable_id = {variable_id}, but found: {found_val_ids}"
+        return found_val_ids[0]
+
     def clone(
             self,
             sample_id: str,

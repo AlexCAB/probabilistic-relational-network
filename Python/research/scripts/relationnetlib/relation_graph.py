@@ -20,7 +20,7 @@ created: 2021-08-09
 
 import copy
 import logging
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Any
 
 from pyvis.network import Network
 
@@ -46,6 +46,8 @@ class RelationGraph:
         self._outcomes: List[SampleGraph] = []
         self._log = logging.getLogger('relationnetlib')
         self._log.debug(f"[RelationGraph.__init__] Created relation graph '{relation_graph_name}'")
+        for v in self._variables.values():
+            v.set_relation_graph(self)
 
     def __repr__(self):
         return f"RelationGraph(name = {self.relation_graph_name })"
@@ -55,6 +57,15 @@ class RelationGraph:
 
     def get_variable_nodes(self) -> Dict[str, VariableNode]:
         return self._variables
+
+    def get_outcomes(self) -> List[SampleGraph]:
+        return self._outcomes
+
+    def get_variable(self, variable_id: str) -> VariableNode:
+        assert variable_id in self._variables, \
+            f"[RelationGraph.variable_id] Unknown variable ID '{variable_id}', " \
+            f"available: {set(self._variables.keys())}"
+        return self._variables[variable_id]
 
     def new_sample_graph(self, sample_graph_name: str, count: int = 1) -> SampleGraph:
         assert count > 0, "[RelationGraph.new_sample_graph] Sample count should be > 0"
@@ -137,7 +148,20 @@ class RelationGraph:
 
         self._log.debug(f"[RelationGraph.show_all_outcomes] len(outcome) = {len(self._outcomes)}")
 
+    def describe(self) -> Dict[str, Any]:
+        return {
+            "name": self.relation_graph_name,
+            "number_variables": len(self._variables),
+            "number_relation_types": len(self._relations),
+            "number_outcomes": len(self._outcomes),
+        }
+
     def inference(self, query: SampleGraph) -> InferenceGraph:
+
+
+
+
+
         # TODO: Фильтруем все оуткомы по граф-запросу
         pass
 
@@ -253,33 +277,33 @@ class RelationGraph:
             else:
                 var_j += 1
 
-        # outcome_node_count, outcome_edge_count = {}, {}
-        # for o in outcomes:
-        #     nc = o.get_number_of_values()
-        #     if nc in outcome_node_count:
-        #         outcome_node_count[nc] += 1
-        #     else:
-        #         outcome_node_count[nc] = 1
-        #     ec = o.get_number_of_edges()
-        #     if ec in outcome_edge_count:
-        #         outcome_edge_count[ec] += 1
-        #     else:
-        #         outcome_edge_count[ec] = 1
-        #
-        # self._log.debug(
-        #     f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
-        #     f"not_connected_count = {not_connected_count}, outcome_node_count = {outcome_node_count}, "
-        #     f"outcome_edge_count = {outcome_edge_count}")
-        #
-        # o_i, o_j = 0, 0
-        #
-        # while o_j < len(outcomes):
-        #     assert o_i == o_j or not outcomes[o_i].is_equivalent(outcomes[o_j]), \
-        #         f"[RelationGraph.generate_all_possible_outcomes] Duplicate outcomes " \
-        #         f"found: {outcomes[o_i]} and {outcomes[o_j]}"
-        #     o_i += 1
-        #     if o_i >= len(outcomes):
-        #         o_j += 1
-        #         o_i = 0
+        outcome_node_count, outcome_edge_count = {}, {}
+        for o in outcomes:
+            nc = o.get_number_of_values()
+            if nc in outcome_node_count:
+                outcome_node_count[nc] += 1
+            else:
+                outcome_node_count[nc] = 1
+            ec = o.get_number_of_edges()
+            if ec in outcome_edge_count:
+                outcome_edge_count[ec] += 1
+            else:
+                outcome_edge_count[ec] = 1
+
+        self._log.debug(
+            f"[RelationGraph.generate_all_possible_outcomes] Total len(outcomes) = {len(outcomes)}, "
+            f"not_connected_count = {not_connected_count}, outcome_node_count = {outcome_node_count}, "
+            f"outcome_edge_count = {outcome_edge_count}")
+
+        o_i, o_j = 0, 0
+
+        while o_j < len(outcomes):
+            assert o_i == o_j or not outcomes[o_i].is_equivalent(outcomes[o_j]), \
+                f"[RelationGraph.generate_all_possible_outcomes] Duplicate outcomes " \
+                f"found: {outcomes[o_i]} and {outcomes[o_j]}"
+            o_i += 1
+            if o_i >= len(outcomes):
+                o_j += 1
+                o_i = 0
 
         self.add_outcomes(outcomes)

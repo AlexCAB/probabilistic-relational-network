@@ -17,6 +17,7 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-23
 """
+
 import logging
 
 from scripts.relationnetlib.relation_graph import RelationGraph
@@ -78,7 +79,6 @@ def generate_all_outcomes_example():
         VariableNode("K", ["k_t", "k_f"]),
         VariableNode("L", ["l_t", "l_f"]),
         VariableNode("M", ["m_t", "m_f"]),
-        VariableNode("O", ["o_t", "o_f"]),
     ]
 
     rel_graph = RelationGraph("generate_all_outcomes_example", relation_types, variables)
@@ -86,6 +86,7 @@ def generate_all_outcomes_example():
     rel_graph.generate_all_possible_outcomes()
 
     rel_graph.show_all_outcomes()
+    print(rel_graph.describe())
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from .relation_edge import RelationEdge
 from .value_node import ValueNode
@@ -26,6 +26,7 @@ from .value_node import ValueNode
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .relation_graph import RelationGraph
+    from .inference_graph import InferenceGraph
 
 
 class VariableNode:
@@ -40,19 +41,19 @@ class VariableNode:
             f"in variable_id = {variable_id}"
         self.variable_id = variable_id
         self.value_ids = value_ids
-        self._values: Dict[(int, str), ValueNode] = {}  # key: (outcome_number, value_id)
-        self._relation_graph: 'RelationGraph' = None
+        self._values: Dict[(str, str), ValueNode] = {}  # key: (outcome_id, value_id)
+        self._relation_graph: Union['RelationGraph', 'InferenceGraph', None] = None
 
     def __repr__(self):
         return f"VariableNode(variable_id = {self.variable_id}, value_ids = {self.value_ids})"
 
-    def set_relation_graph(self, relation_graph: 'RelationGraph') -> None:
+    def set_relation_graph(self, relation_graph: Union['RelationGraph', 'InferenceGraph']) -> None:
         assert not self._relation_graph, \
             "[VariableNode.set_relation_graph] Variable node can't be added to relation graph twice"
         self._relation_graph = relation_graph
 
-    def add_value(self, outcome_number: int, node: ValueNode) -> None:
-        self._values[(outcome_number, node.value_id)] = node
+    def add_value(self, outcome_id: str, node: ValueNode) -> None:
+        self._values[(outcome_id, node.value_id)] = node
 
     def get_all_relation_between(self, variable_id: str) -> List[RelationEdge]:
         relations = []
@@ -64,7 +65,17 @@ class VariableNode:
                     relations.append(r)
         return relations
 
+    def clean_copy(self) -> 'VariableNode':
+        return VariableNode(self.variable_id, self.value_ids)
+
     def marginal_distribution(self) -> Dict[str, float]:
+        """
+        For each value of this variable count number of outcome where value enters,
+        then count outcomes where no one of values of this variable enters (unobserved),
+        then normalize all counts ant return.
+        :return: Dict[value_id, normalized marginal probability]
+        """
+        
         assert self._relation_graph, \
             "[VariableNode.marginal_distribution] Variable node should be added to relation graph"
         outcomes = self._relation_graph.get_outcomes()
@@ -79,9 +90,9 @@ class VariableNode:
                 assert vid in count, \
                     f"[VariableNode.marginal_distribution] Found unknown value Id '{vid}', " \
                     f"where available: {self.value_ids} in variable_id = {self.variable_id}"
-                count[vid] += o.count
+                count[vid] += 1
 
-        n_outcomes = sum([o.count for o in outcomes])
+        n_outcomes = len(outcomes)
 
         assert n_outcomes > 0, \
             f"[VariableNode.marginal_distribution] n_outcomes <= 0 (n_outcomes = {n_outcomes}), which look like bug."

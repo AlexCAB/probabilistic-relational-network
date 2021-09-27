@@ -28,22 +28,14 @@ from .relation_type import RelationType
 from .value_node import ValueNode
 from .variable_node import VariableNode
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .relation_graph import RelationGraph
-
 
 class SampleGraph:
 
-    def __init__(
-            self, sample_id: str, count: int, relation_graph: 'RelationGraph'):
+    def __init__(self, sample_id: str, relations: List[RelationType], variables: List[VariableNode]):
         assert sample_id, "[SampleGraph.__init__] sample_id should not be empty string"
-        assert count > 0, "[SampleGraph.__init__] count should be > 0"
         self.sample_id: str = sample_id
-        self.count: int = count
-        self._relation_graph: 'RelationGraph' = relation_graph
-        self._relations: Dict[str, RelationType] = relation_graph.get_relation_types()
-        self._variables: Dict[str, VariableNode] = relation_graph.get_variable_nodes()
+        self._relations: Dict[str, RelationType] = {r.relation_type_id: r for r in relations}
+        self._variables: Dict[str, VariableNode] = {v.variable_id: v for v in variables}
         self._values: Dict[(str, str), ValueNode] = {}  # key: (variable_id, value_id)
         self._edges: Dict[(frozenset[(str, str)], str), RelationEdge] = {}  # key: (node ids, relation_type_id)
         self._log = logging.getLogger('relationnetlib')
@@ -154,17 +146,38 @@ class SampleGraph:
     def clone(
             self,
             sample_id: str,
-            count: int = 1,
-            values_to_replace: Dict[str, str] = None
+            values_to_replace: Dict[str, str] = None,
+            relations: List[RelationType] = None,
+            variables: List[VariableNode] = None
     ) -> 'SampleGraph':
         """
         Clone this SampleGraph with replacing of values in selected variables
         :param sample_id: ID for new SampleGraph
-        :param count: count for new SampleGraph
         :param values_to_replace: # Dict{variable_id for which value need to be replaced, value_id new value ID}
+        :param relations: # Alternative relations if None self._relation will used
+        :param variables: # Alternative variables if None self._variables will used
         :return: new SampleGraph
         """
-        sg = SampleGraph(sample_id, count, self._relation_graph)
+        if relations:
+            used_rel = set([e.relation_type.relation_type_id for e in self._edges.values()])
+            provided_rel = set([r.relation_type_id for r in relations])
+            assert used_rel.issubset(provided_rel),  \
+                f"[SampleGraph.clone] Not all used relation are in provided, used_rel = {used_rel}, " \
+                f"provided_rel = {provided_rel}"
+
+        if variables:
+            used_var = set([v.variable_id for v in self._values.values()])
+            provided_var = set([v.variable_id for v in variables])
+            assert used_var.issubset(provided_var),  \
+                f"[SampleGraph.clone] Not all used variables are in provided, used_var = {used_var}, " \
+                f"provided_var = {provided_var}"
+
+        sg = SampleGraph(
+            sample_id,
+            relations if relations else self._relations.values(),
+            variables if variables else self._variables.values()
+        )
+
         vtr = values_to_replace if values_to_replace else {}
 
         for v in self._values.values():
@@ -187,6 +200,12 @@ class SampleGraph:
     def validate(self) -> List[str]:  # Returns list of error messages
         if len(self._values) == 1 and len(self._edges) == 0:
             return []
+
+        if len(self._values) > 1 and len(self._edges) == 0:
+            return [f"Graph is not linked, {len(self._values)} values where 0 edges"]
+
+        if not self._values:
+            return [f"Graph should not be empty"]
 
         edges = list(self._edges.values())
         start_node = edges[0].node_a

@@ -20,9 +20,9 @@ created: 2021-08-23
 
 import logging
 
-from scripts.relationnetlib.relation_graph import RelationGraph
-from scripts.relationnetlib.relation_type import RelationType
-from scripts.relationnetlib.variable_node import VariableNode
+from .relation_graph import RelationGraph
+from .relation_type import RelationType
+from .variable_node import VariableNode
 
 
 def rendering_example():

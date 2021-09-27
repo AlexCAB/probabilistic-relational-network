@@ -15,17 +15,18 @@ r"""
 
 author: CAB
 website: github.com/alexcab
-created: 2021-09-24
+created: 2021-09-27
 """
 
 import logging
+from typing import Tuple
 
 from scripts.relationnetlib.relation_graph import RelationGraph
 from scripts.relationnetlib.relation_type import RelationType
 from scripts.relationnetlib.variable_node import VariableNode
 
 
-def build_rel_graph_example() -> RelationGraph:
+def build_rel_graph_example() -> (RelationGraph, Tuple[RelationType, RelationType]):
 
     k_relation = RelationType("K")
     l_relation = RelationType("L")
@@ -48,31 +49,44 @@ def build_rel_graph_example() -> RelationGraph:
     o_1_b_t = o_1.add_value_node("B", "b_t")
     o_1.add_relation({o_1_a_t, o_1_b_t}, k_relation)
 
-    o_2 = o_1.clone("o2")
+    o_2 = rel_graph.new_sample_graph("o2")
+    o_2_b_t = o_2.add_value_node("B", "b_t")
+    o_2_c_t = o_2.add_value_node("C", "c_t")
+    o_2.add_relation({o_2_b_t, o_2_c_t}, k_relation)
 
-    o_3 = rel_graph.new_sample_graph("o3")
-    o_3_b_t = o_3.add_value_node("B", "b_t")
-    o_3_c_t = o_3.add_value_node("C", "c_t")
-    o_3.add_relation({o_3_b_t, o_3_c_t}, k_relation)
+    rel_graph.add_outcomes([o_1, o_2])
 
-    o_4 = o_3.clone("o4")
-    o_5 = o_3.clone("o5")
-
-    rel_graph.add_outcomes([o_1, o_2, o_3, o_4, o_5])
-
-    rel_graph.show_all_outcomes()
     print(rel_graph.describe())
+    # rel_graph.show_all_outcomes()
 
-    return rel_graph
+    return rel_graph, (k_relation, l_relation)
 
 
-def run_marginalization(rel_graph: RelationGraph):
+def run_inference(rel_graph: RelationGraph, relations: Tuple[RelationType, RelationType]):
+    k_relation, l_relation = relations
 
-    print(f"Marginal A = {rel_graph.get_variable('A').marginal_distribution()}")
-    print(f"Marginal B = {rel_graph.get_variable('B').marginal_distribution()}")
-    print(f"Marginal C = {rel_graph.get_variable('C').marginal_distribution()}")
+    q_b = rel_graph.new_sample_graph("q_b")
+    q_b.add_value_node("B", "b_t")
+    i_b = rel_graph.inference(q_b)
+    print(i_b.describe())
+    i_b.show_outcomes()
+
+    q_a = rel_graph.new_sample_graph("q_a")
+    q_a.add_value_node("A", "a_t")
+    i_a = rel_graph.inference(q_a)
+    print(i_a.describe())
+    # i_a.show_outcomes()
+
+    q_b_c = rel_graph.new_sample_graph("q_b_c")
+    q_b_c_b = q_b_c.add_value_node("B", "b_t")
+    q_b_c_c = q_b_c.add_value_node("C", "c_t")
+    q_b_c.add_relation({q_b_c_b, q_b_c_c}, l_relation)
+    i_b_c = rel_graph.inference(q_b_c)
+    print(i_b_c.describe())
+    # i_b_c.show_outcomes()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    run_marginalization(build_rel_graph_example())
+    graph, rs = build_rel_graph_example()
+    run_inference(graph, rs)

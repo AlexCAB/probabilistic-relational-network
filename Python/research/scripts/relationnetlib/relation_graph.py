@@ -67,24 +67,25 @@ class RelationGraph:
             f"available: {set(self._variables.keys())}"
         return self._variables[variable_id]
 
-    def new_sample_graph(self, sample_graph_name: str, count: int = 1) -> SampleGraph:
-        assert count > 0, "[RelationGraph.new_sample_graph] Sample count should be > 0"
+    def new_sample_graph(self, sample_id: str) -> SampleGraph:
         self._log.debug(
-            f"[RelationGraph.new_sample_graph] sample_graph_name = {sample_graph_name}, count = {count}")
-        return SampleGraph(sample_graph_name, count, self)
+            f"[RelationGraph.new_sample_graph] sample_id = {sample_id}")
+        return SampleGraph(sample_id, list(self._relations.values()), list(self._variables.values()))
 
     def get_number_of_outcomes(self) -> int:
         return len(self._outcomes)
 
     def add_outcomes(self, outcomes: List[SampleGraph]) -> None:
-        start_outcome_number = len(self._outcomes)
-        for o in outcomes:
-            errors = o.validate()
-            assert not errors, f"[RelationGraph.add_outcomes] Invalid outcome found: {o}, errors: {errors}"
-        self._outcomes.extend(outcomes)
-        for i in range(0, len(outcomes)):
-            for v in outcomes[i].get_all_values():
-                self._variables[v.variable_id].add_value(start_outcome_number + i, v)
+        for outcome in outcomes:
+            errors = outcome.validate()
+            assert not errors, \
+                f"[RelationGraph.add_outcomes] Invalid outcome found: {self._outcomes}, errors: {errors}"
+            assert outcome.sample_id not in [o.sample_id for o in self._outcomes], \
+                f"[RelationGraph.add_outcomes] Outcome with sample_id = {outcome.sample_id} was added previously."
+            self._outcomes.append(outcome)
+        for outcome in outcomes:
+            for value in outcome.get_all_values():
+                self._variables[value.variable_id].add_value(outcome.sample_id, value)
         self._log.debug(f"[RelationGraph.add_outcomes] len(outcomes) = {len(outcomes)}")
 
     def show_relation_graph(self,  height="1024px", width="1024px") -> None:
@@ -135,7 +136,7 @@ class RelationGraph:
             for v in outcome.get_all_values():
                 net.add_node(
                     f"{outcome.sample_id}@{v.value_id}",
-                    label=f"{outcome.sample_id}({outcome.count})@{v.variable_id}({v.value_id})")
+                    label=f"{outcome.sample_id}@{v.variable_id}({v.value_id})")
 
             for e in outcome.all_edges():
                 net.add_edge(
@@ -154,16 +155,37 @@ class RelationGraph:
             "number_variables": len(self._variables),
             "number_relation_types": len(self._relations),
             "number_outcomes": len(self._outcomes),
+            "variable_ids": [v.variable_id for v in self._variables.values()],
+            "relation_type_ids": [v.relation_type_id for v in self._relations.values()],
         }
 
     def inference(self, query: SampleGraph) -> InferenceGraph:
+        query_errors = query.validate()
 
+        assert not query_errors, f"[RelationGraph.inference] query {query} is invalid, query_errors: {query_errors}"
 
+        query_hash = query.get_hash()
+        selected_outcomes = [o for o in self._outcomes if query_hash.issubset(o.get_hash())]
+        cloned_variables = {}
 
+        for o in selected_outcomes:
+            for v in o.get_all_values():
+                if v.variable_id not in cloned_variables:
+                    cloned_variables[v.variable_id] = self._variables[v.variable_id].clean_copy()
 
+        cloned_outcomes = [
+            o.clone(o.sample_id, relations=list(self._relations.values()), variables=list(cloned_variables.values()))
+            for o in selected_outcomes]
 
-        # TODO: Фильтруем все оуткомы по граф-запросу
-        pass
+        for outcome in cloned_outcomes:
+            for value in outcome.get_all_values():
+                cloned_variables[value.variable_id].add_value(outcome.sample_id, value)
+
+        self._log.debug(
+            f"[RelationGraph.inference] len(cloned_outcomes) = {len(cloned_outcomes)}, "
+            f"len(cloned_variables) = {len(cloned_variables)}")
+
+        return InferenceGraph(query, list(cloned_variables.values()), cloned_outcomes)
 
     def generate_all_possible_outcomes(self) -> None:
         variables = list(self._variables.values())

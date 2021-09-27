@@ -20,7 +20,6 @@ created: 2021-09-17
 
 import logging
 import math
-from typing import List
 
 from scripts.relationnetlib.relation_graph import RelationGraph
 from scripts.relationnetlib.relation_type import RelationType

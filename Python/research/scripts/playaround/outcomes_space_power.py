@@ -30,9 +30,9 @@ def outcomes_space_power():
 
     # Parameters
 
-    max_number_of_variables = 5
-    max_number_of_values = 5
-    max_number_of_relation_type = 5
+    max_number_of_variables = 4
+    max_number_of_values = 2
+    max_number_of_relation_type = 2
 
     # Helpers
 

@@ -15,7 +15,7 @@ r"""
 
 author: CAB
 website: github.com/alexcab
-created: 2021-09-24
+created: 2021-09-28
 """
 
 import logging
@@ -31,7 +31,7 @@ def build_rel_graph_example() -> RelationGraph:
     l_relation = RelationType("L")
 
     rel_graph = RelationGraph(
-        "variable_marginalization_example",
+        "disjoint_distribution_example",
         relations=[
             k_relation,
             l_relation,
@@ -66,13 +66,10 @@ def build_rel_graph_example() -> RelationGraph:
     return rel_graph
 
 
-def run_marginalization(rel_graph: RelationGraph):
-
-    print(f"Marginal A = {rel_graph.get_variable('A').marginal_distribution()}")
-    print(f"Marginal B = {rel_graph.get_variable('B').marginal_distribution()}")
-    print(f"Marginal C = {rel_graph.get_variable('C').marginal_distribution()}")
+def run_disjoint_distribution(rel_graph: RelationGraph):
+    print(f"disjoint_distribution = {rel_graph.disjoint_distribution()}")
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    run_marginalization(build_rel_graph_example())
+    run_disjoint_distribution(build_rel_graph_example())

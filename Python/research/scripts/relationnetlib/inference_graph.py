@@ -19,11 +19,13 @@ created: 2021-08-09
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 from pyvis.network import Network
-from .active_value import ActiveValue
+from .active_value import ActiveValue, ActiveRelation
+from .relation_edge import RelationEdge
 from .relation_type import RelationType
+from .value_node import ValueNode
 from .variable_node import VariableNode
 
 from typing import TYPE_CHECKING
@@ -82,4 +84,64 @@ class InferenceGraph:
         :param limit: max number of active values to be returned
         :return List[ActiveValue]: list of calculated active values, sorted on weight:
         """
-        pass
+
+        in_query_values = {v.get_id(): v for v in self._query.get_all_values()}
+        relation_filter_ids = [r.relation_type_id for r in relation_filter] if relation_filter else None
+        found_values_per_outcome: Dict[str, Tuple[float, Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]]]] = {}
+
+        self._log.debug(
+            f"[InferenceGraph.get_active_values] in_query_values = {in_query_values}, "
+            f"relation_filter_ids = {relation_filter_ids}, limit = {limit}")
+
+        for outcome in self._outcomes:
+            checked_value_ids = set(in_query_values.keys())
+            found_values: Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]] = {}
+            similarity = outcome.get_similarity(self._query)
+
+            while True:
+                one_step_value: Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]] = {}
+
+                for outcome_val in outcome.get_all_values():
+                    if outcome_val.get_id() in checked_value_ids:
+                        neighboring_values = outcome.get_neighboring_values(
+                            outcome_val.variable_id, outcome_val.value_id, relation_filter_ids)
+                        for nv, rel in neighboring_values:
+                            if nv.get_id() not in checked_value_ids and nv.get_id() not in one_step_value:
+                                one_step_value[nv.get_id()] = (nv, rel)
+
+                if one_step_value:
+                    checked_value_ids.update(one_step_value.keys())
+                    found_values.update(one_step_value)
+                    one_step_value.clear()
+                else:
+                    break
+
+            self._log.debug(
+                f"[InferenceGraph.get_active_values] sample_id = {outcome.sample_id}, "
+                f"similarity = {similarity}, found_values = {found_values}")
+            found_values_per_outcome[outcome.sample_id] = (similarity, found_values)
+
+        grouped_values: Dict[Tuple[str, str], Tuple[float, Dict[Tuple[str, str, str], int]]] = {}
+
+        for outcome_id, (similarity, found_values) in found_values_per_outcome.items():
+            for val_id, (val, rel) in found_values.items():
+                other_val = rel.end_node_for_start(val)
+                rel_id = (other_val.variable_id, other_val.value_id, rel.relation_type.relation_type_id)
+                if val_id in grouped_values:
+                    sim_count, rel_acc = grouped_values[val_id]
+                    if rel_id in rel_acc:
+                        rel_acc[rel_id] += 1
+                    else:
+                        rel_acc[rel_id] = 1
+                    grouped_values[val_id] = (sim_count + similarity, rel_acc)
+                else:
+                    grouped_values[val_id] = (similarity, {rel_id: 1})
+
+        active_values: List[ActiveValue] = []
+
+        for (variable_id, value_id), (weight, rel_count) in grouped_values.items():
+            active_relations = [ActiveRelation(linked_val_id, linked_var_id, rel_type_id, count)
+                                for (linked_val_id, linked_var_id, rel_type_id), count in rel_count.items()]
+            active_values.append(ActiveValue(variable_id, value_id, weight, active_relations))
+
+        return sorted(active_values, key=lambda x: x.weight, reverse=True)

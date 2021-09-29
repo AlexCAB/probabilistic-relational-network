@@ -20,7 +20,7 @@ created: 2021-08-09
 
 import copy
 import logging
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Set, Any, Tuple
 
 from pyvis.network import Network
 
@@ -329,3 +329,21 @@ class RelationGraph:
                 o_i = 0
 
         self.add_outcomes(outcomes)
+
+    def disjoint_distribution(self) -> Dict[Tuple[str, str], float]:
+        """
+        Calculate probability of appear for each value of each variable, as if they are independent events.
+        :return: List[(variable_id, value_id), probability_of_appear]
+        """
+        count = {}
+
+        for outcome in self._outcomes:
+            for val in outcome.get_all_values():
+                if val.get_id() in count:
+                    count[val.get_id()] += 1
+                else:
+                    count[val.get_id()] = 1
+
+        total = sum(count.values())
+
+        return {k: v / total for k, v in count.items()}

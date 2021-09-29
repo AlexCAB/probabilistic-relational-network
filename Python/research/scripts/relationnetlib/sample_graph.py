@@ -228,3 +228,60 @@ class SampleGraph:
 
     def is_equivalent(self, other: 'SampleGraph') -> bool:
         return self.get_hash() == other.get_hash()
+
+    def get_neighboring_values(
+            self,
+            variable_id: str,
+            value_id: str,
+            rel_ids_filter: List[str] = None
+    ) -> List[Tuple[ValueNode, RelationEdge]]:
+        """
+        Search the neighbors of given node (variable_id, rel_ids_filter), which linked with one of relation type
+        from rel_ids_filter list.
+        :param variable_id: center node variable_id
+        :param value_id: center node value_id
+        :param rel_ids_filter: list of relation type IDs to select neighbors with particular set of relation,
+                               if None then select roe all relations.
+        :return: List[neighbor_node, relation_type_with_which_this_node_connected]
+        """
+
+        center_node_id = (variable_id, value_id)
+        neighboring_values = []
+
+        assert center_node_id in self._values, \
+            f"[SampleGraph.get_neighboring_values] center_node_id = {center_node_id} is not in value " \
+            f"list of this sample: {self._values.keys()}"
+
+        for key, edge in self._edges.items():
+            node_ids, rel_type_id = key
+            if center_node_id in node_ids:
+                if not rel_ids_filter or (rel_type_id in rel_ids_filter):
+                    found_node = edge.node_b if edge.node_a.get_id() == center_node_id else edge.node_a
+                    assert found_node.get_id() in self._values, \
+                        f"[SampleGraph.get_neighboring_values] found_node = {center_node_id} is not in value " \
+                        f"list of this sample: {self._values.keys()}"
+                    assert found_node.get_id() != center_node_id, \
+                        f"[SampleGraph.get_neighboring_values] found_node = {found_node.get_id()} can't be equal " \
+                        f"center node, it look like bug "
+                    neighboring_values.append((found_node, edge))
+
+        neighboring_values_ids = [nv.get_id() for nv, _ in neighboring_values]
+        assert len(set(neighboring_values_ids)) == len(neighboring_values), \
+            f"[SampleGraph.get_neighboring_values] found neighboring values have duplication, " \
+            f"this should not happens since sample is not multi-graph, this is a bug, " \
+            f"neighboring_values_ids = {neighboring_values_ids}"
+
+        return neighboring_values
+
+    def get_similarity(self, other: 'SampleGraph') -> float:
+        """
+        Calculate how similar is this sample to other sample
+        :param other: other sample
+        :return: 0 - completely different, 1 - completely match
+        """
+        self_hash = self.get_hash()
+        other_hash = other.get_hash()
+        intersect_hash = self_hash.intersection(other_hash)
+        differ_hash = self_hash.symmetric_difference(other_hash)
+
+        return len(intersect_hash) / (len(intersect_hash) + len(differ_hash))

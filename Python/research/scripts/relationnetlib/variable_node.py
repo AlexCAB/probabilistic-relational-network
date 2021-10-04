@@ -17,7 +17,7 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-09
 """
-
+from math import isclose
 from typing import List, Dict, Union
 
 from .relation_edge import RelationEdge
@@ -108,9 +108,10 @@ class VariableNode:
 
         count['unobserved'] = n_unobserved
         normalized = {vid: c / n_outcomes for vid, c in count.items()}
+        prob_sum = sum([c for c in normalized.values()])
 
-        assert sum([c for c in normalized.values()]) == 1,  \
+        assert isclose(prob_sum, 1),  \
             f"[VariableNode.marginal_distribution] Normalized probabilities not sum to 1, " \
-            f"n_outcomes = {n_outcomes}, count = {count}"
+            f"n_outcomes = {n_outcomes}, count = {count}, prob_sum = {prob_sum}"
 
         return normalized

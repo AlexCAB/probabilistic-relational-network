@@ -115,3 +115,15 @@ class VariableNode:
             f"n_outcomes = {n_outcomes}, count = {count}, prob_sum = {prob_sum}"
 
         return normalized
+
+    def values_marginal_distribution(self) -> Dict[str, float]:
+        """
+        Same as marginal_distribution() but also do reduction on 'unobserved' value.
+        :return: Dict[value_id, normalized marginal probability]
+        """
+
+        all_values = self.marginal_distribution()
+        all_values.pop('unobserved')
+        p_sum = sum([p for _, p in all_values.items()])
+
+        return {i: p / p_sum for i, p in all_values.items()}

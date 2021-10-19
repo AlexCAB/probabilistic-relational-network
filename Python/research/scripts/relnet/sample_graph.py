@@ -15,16 +15,15 @@ r"""
 
 author: CAB
 website: github.com/alexcab
-created: 2021-08-09
+created: 2021-10-18
 """
 
+import copy
+import os
 from collections import Hashable
-from typing import Dict, List, Set, Tuple, Any, Optional
+from typing import Dict, List, Set, Any, Optional, Tuple
 
 from pyvis.network import Network
-
-from .relation_type import RelationType
-from .variable_node import VariableNode
 
 
 class ValueNode:
@@ -42,6 +41,17 @@ class ValueNode:
 
     def __repr__(self):
         return f"({self.variable}_{self.value})"
+
+    def __copy__(self):
+        return ValueNode(copy.deepcopy(self.variable), copy.deepcopy(self.value))
+
+    def __eq__(self, other: Any):
+        if isinstance(other, ValueNode):
+            return self.variable == other.variable and self.value == other.value
+        return False
+
+    def with_replaced_value(self, new_value: Any) -> 'ValueNode':
+        return ValueNode(copy.deepcopy(self.variable), new_value)
 
 
 class RelationEdge:
@@ -67,24 +77,58 @@ class RelationEdge:
         return (self.endpoints, self.relation).__hash__()
 
     def __repr__(self):
-        return f"({self.a})--{{{self.relation}}}--({self.b}))"
+        se = sorted(self.endpoints, key=lambda e: str(e))
+        return f"{se[0]}--{{{self.relation}}}--{se[1]}"
+
+    def __copy__(self):
+        return RelationEdge(copy.deepcopy(self.endpoints), copy.deepcopy(self.relation))
+
+    def __eq__(self, other: Any):
+        if isinstance(other, RelationEdge):
+            return self.endpoints == other.endpoints and self.relation == other.relation
+        return False
+
+    def is_endpoint(self, node: ValueNode) -> bool:
+        return node in self.endpoints
+
+    def opposite_endpoint(self, node: ValueNode) -> ValueNode:
+        if self.a == node:
+            return self.b
+        if self.b == node:
+            return self.a
+        raise AssertionError(
+            f"[RelationEdge.opposite_endpoint] Node {node} is not endpoint of this edge: {self}")
+
+    def with_replaced_values(self, to_replace: Dict[Any, Tuple[Any, Any]]) -> 'RelationEdge':
+        return RelationEdge(
+            frozenset({
+                (n.with_replaced_value(to_replace[n.variable][1])
+                 if n.variable in to_replace and n.value == to_replace[n.variable][0] else copy.deepcopy(n))
+                for n in self.endpoints}),
+            copy.deepcopy(self.relation))
 
 
 class SampleBuilder:
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: Optional[str] = None, nodes: Set[ValueNode] = None, edges: Set[RelationEdge] = None):
         self._name = name
-        self._nodes: Set[ValueNode] = set([])
-        self._edges: Set[RelationEdge] = set([])
+        self._nodes: Set[ValueNode] = nodes if nodes else set([])
+        self._edges: Set[RelationEdge] = edges if edges else set([])
+
+    def set_name(self, name: str):
+        self._name = name
+        return self
 
     def add_value(self, variable: Any, value: Any) -> 'SampleBuilder':
         node = ValueNode(variable, value)
         assert node not in self._nodes, \
             f"[SampleBuilder.add_value] Node {node} already added to nodes: {self._nodes}"
+        assert variable not in {n.variable for n in self._nodes}, \
+            f"[SampleBuilder.add_value] Variable {variable} already added. Each variable can be used only once."
         self._nodes.add(node)
         return self
 
-    def add_relation(self, endpoints: Set[(Any, Any)], relation: Any) -> 'SampleBuilder':
+    def add_relation(self, endpoints: Set[Tuple[Any, Any]], relation: Any) -> 'SampleBuilder':
         edge = RelationEdge(frozenset({ValueNode(var, val) for var, val in endpoints}), relation)
         for e in edge.endpoints:
             assert e in self._nodes, f"[SampleBuilder.add_relation] Endpoint {e} in nodes: {self._nodes}"
@@ -93,29 +137,65 @@ class SampleBuilder:
         self._edges.add(edge)
         return self
 
+    def connected_nodes(self, start_node: ValueNode, traced: Set[ValueNode] = None) -> Set[ValueNode]:
+        if not traced:
+            traced = {start_node}
+        neighbors = [e.opposite_endpoint(start_node) for e in self._edges if e.is_endpoint(start_node)]
+        for neighbor in neighbors:
+            if neighbor not in traced:
+                traced.add(neighbor)
+                traced.update(self.connected_nodes(neighbor, traced))
+        return traced
+
+    def is_connected(self) -> bool:
+        if len(self._nodes) == 1 and len(self._edges) == 0:
+            return True  # Single node graph
+        if len(self._nodes) > 0 and self.connected_nodes(list(self._nodes)[0]) == self._nodes:
+            return True  # All nodes are connected
+        return False
+
     def build(self) -> 'SampleGraph':
-        name = self._name
-        if not name:
-            struct = [str(e) for e in self._edges] if self._edges else [str(n) for n in self._nodes]
-            name = "{" + '; '.join(struct) + "}"
-        return SampleGraph(frozenset(self._nodes), frozenset(self._edges), name)
+        assert self.is_connected(), f"[SampleBuilder.build] Sample graph should be connected"
+        return SampleGraph(frozenset(self._nodes), frozenset(self._edges), self._name)
 
 
 class SampleGraph:
 
-    def __init__(self, nodes: frozenset[ValueNode], edges: frozenset[RelationEdge], name: str):
-        for edge, rel in edges:
+    def __init__(self, nodes: frozenset[ValueNode], edges: frozenset[RelationEdge], name: Optional[str]):
+        assert nodes, \
+            "[SampleGraph.__init__] Sample graph should have at least 1 node"
+        assert len({n.variable for n in nodes}) == len(nodes), \
+            f"[SampleGraph.__init__] Found duplicate variable in nodes: {nodes}"
+        for edge in edges:
             assert edge.endpoints.issubset(nodes), \
-                f"[SampleGraph.__init__] Edges endpoints {edge.endpoints} should ne subset of nodes: {nodes}"
-        assert name, \
-            f"[SampleGraph.__init__] The name should not be empty string"
+                f"[SampleGraph.__init__] Edges endpoints {edge.endpoints} should be subset of nodes: {nodes}"
         self.nodes: frozenset[ValueNode] = nodes
         self.edges: frozenset[RelationEdge] = edges
-        self.name: str = name
         self.hash: frozenset[Any] = nodes.union({e for e in edges})
+        self.name: str = name
+        if not self.name:
+            struct = sorted([str(e) for e in self.edges] if self.edges else [str(n) for n in self.nodes])
+            self.name = "{" + '; '.join(struct) + "}"
+
+    def __hash__(self):
+        return self.hash.__hash__()
 
     def __repr__(self):
         return self.name
+
+    def __copy__(self):
+        return SampleGraph(copy.deepcopy(self.nodes), copy.deepcopy(self.edges), self.name)
+
+    def __eq__(self, other: Any):
+        if isinstance(other, SampleGraph):
+            return self.hash == other.hash
+        return False
+
+    def text_view(self) -> str:
+        if self.edges:
+            return "{" + os.linesep + os.linesep.join(sorted(["    " + str(e) for e in self.edges])) + os.linesep + "}"
+        else:
+            return "{" + str(list(self.nodes)[0]) + "}"
 
     def show(self, height="1024px", width="1024px") -> None:
         net = Network(height=height, width=width)
@@ -125,161 +205,43 @@ class SampleGraph:
             net.add_edge(str(edge.a), str(edge.b), label=str(edge.relation))
         net.show(f"{self.name}_sample.html")
 
+    def builder(self) -> SampleBuilder:
+        return SampleBuilder(
+            self.name,
+            {copy.deepcopy(n) for n in self.nodes},
+            {copy.deepcopy(e) for e in self.edges})
 
+    def is_subgraph(self, other: 'SampleGraph') -> bool:
+        return self.hash.issubset(other.hash)
 
-    # TODO From here
+    def contains_variable(self, variable: Any) -> bool:
+        for n in self.nodes:
+            if n.variable == variable:
+                return True
+        return False
 
+    def value_for_variable(self, variable: Any) -> Any:
+        for n in self.nodes:
+            if n.variable == variable:
+                return n.value
+        raise AssertionError(f"[SampleGraph.value_for_variable] Variable {variable} is not in nodes: {self.nodes}")
 
-    def have_variable_value(self, variable_id: str) -> bool:
-        return variable_id in [vid for vid, _ in self._values.keys()]
+    def with_replaced_values(self, to_replace: Dict[Any, Tuple[Any, Any]], name: Optional[str] = None) -> 'SampleGraph':
+        return SampleGraph(
+            frozenset({(
+                n.with_replaced_value(to_replace[n.variable][1])
+                if n.variable in to_replace and n.value == to_replace[n.variable][0]
+                else n)
+                for n in self.nodes}),
+            frozenset({e.with_replaced_values(to_replace) for e in self.edges}),
+            name)
 
-    def get_value_id_for_variable(self, variable_id: str) -> bool:
-        found_val_ids = [val_id for var_id, val_id in self._values.keys() if var_id == variable_id]
-        assert len(found_val_ids) == 1, \
-            f"[SampleGraph.get_value_id_for_variable] Expect to find exactly one value for " \
-            f"variable_id = {variable_id}, but found: {found_val_ids}"
-        return found_val_ids[0]
+    def neighboring_values(self, center: ValueNode, rel_filter: List[Any] = None) -> Dict[ValueNode, RelationEdge]:
+        return {e.opposite_endpoint(center): e
+                for e in self.edges
+                if e.is_endpoint(center) and (not rel_filter or (e.relation in rel_filter))}
 
-    def clone(
-            self,
-            sample_id: str,
-            values_to_replace: Dict[str, str] = None,
-            relations: List[RelationType] = None,
-            variables: List[VariableNode] = None
-    ) -> 'SampleGraph':
-        """
-        Clone this SampleGraph with replacing of values in selected variables
-        :param sample_id: ID for new SampleGraph
-        :param values_to_replace: # Dict{variable_id for which value need to be replaced, value_id new value ID}
-        :param relations: # Alternative relations if None self._relation will used
-        :param variables: # Alternative variables if None self._variables will used
-        :return: new SampleGraph
-        """
-        if relations:
-            used_rel = set([e.relation_type.relation_type_id for e in self._edges.values()])
-            provided_rel = set([r.relation_type_id for r in relations])
-            assert used_rel.issubset(provided_rel), \
-                f"[SampleGraph.clone] Not all used relation are in provided, used_rel = {used_rel}, " \
-                f"provided_rel = {provided_rel}"
-
-        if variables:
-            used_var = set([v.variable_id for v in self._values.values()])
-            provided_var = set([v.variable_id for v in variables])
-            assert used_var.issubset(provided_var), \
-                f"[SampleGraph.clone] Not all used variables are in provided, used_var = {used_var}, " \
-                f"provided_var = {provided_var}"
-
-        sg = SampleGraph(
-            sample_id,
-            relations if relations else self._relations.values(),
-            variables if variables else self._variables.values()
-        )
-
-        vtr = values_to_replace if values_to_replace else {}
-
-        for v in self._values.values():
-            sg.add_value_node(
-                v.variable_id,
-                vtr[v.variable_id] if v.variable_id in vtr else v.value_id)
-
-        for e in self._edges.values():
-            def get_node(n: ValueNode) -> ValueNode:
-                return sg.add_value_node(
-                    n.variable_id,
-                    vtr[n.variable_id] if n.variable_id in vtr else n.value_id)
-
-            sg.add_relation({get_node(e.node_a), get_node(e.node_b)}, e.relation_type)
-
-        self._log.debug(
-            f"[SampleGraph.clone] Cloned from this sample_id = {self.sample_id} to new sample_id = {sample_id}")
-
-        return sg
-
-    def validate(self) -> List[str]:  # Returns list of error messages
-        if len(self._values) == 1 and len(self._edges) == 0:
-            return []
-
-        if len(self._values) > 1 and len(self._edges) == 0:
-            return [f"Graph is not linked, {len(self._values)} values where 0 edges"]
-
-        if not self._values:
-            return [f"Graph should not be empty"]
-
-        edges = list(self._edges.values())
-        start_node = edges[0].node_a
-
-        def trace_graph(start: ValueNode, traced: Set[Tuple[str, str]]) -> Set[Tuple[str, str]]:
-            neighbors = [e.end_node_for_start(start) for e in edges if e.have_node(start)]
-            for neighbor in neighbors:
-                if neighbor.get_id() not in traced:
-                    traced.add(neighbor.get_id())
-                    traced.update(trace_graph(neighbor, traced))
-            return traced
-
-        traced_nodes_ids = trace_graph(start_node, {start_node.get_id()})
-        actual_node_ids = set(self._values.keys())
-
-        if traced_nodes_ids != actual_node_ids:
-            return [f"Graph is not linked, traced_nodes_ids = {traced_nodes_ids}, actual_node_ids = {actual_node_ids}"]
-        else:
-            return []
-
-    def is_equivalent(self, other: 'SampleGraph') -> bool:
-        return self.get_hash() == other.get_hash()
-
-    def get_neighboring_values(
-            self,
-            variable_id: str,
-            value_id: str,
-            rel_ids_filter: List[str] = None
-    ) -> List[Tuple[ValueNode, RelationEdge]]:
-        """
-        Search the neighbors of given node (variable_id, rel_ids_filter), which linked with one of relation type
-        from rel_ids_filter list.
-        :param variable_id: center node variable_id
-        :param value_id: center node value_id
-        :param rel_ids_filter: list of relation type IDs to select neighbors with particular set of relation,
-                               if None then select roe all relations.
-        :return: List[neighbor_node, relation_type_with_which_this_node_connected]
-        """
-
-        center_node_id = (variable_id, value_id)
-        neighboring_values = []
-
-        assert center_node_id in self._values, \
-            f"[SampleGraph.get_neighboring_values] center_node_id = {center_node_id} is not in value " \
-            f"list of this sample: {self._values.keys()}"
-
-        for key, edge in self._edges.items():
-            node_ids, rel_type_id = key
-            if center_node_id in node_ids:
-                if not rel_ids_filter or (rel_type_id in rel_ids_filter):
-                    found_node = edge.node_b if edge.node_a.get_id() == center_node_id else edge.node_a
-                    assert found_node.get_id() in self._values, \
-                        f"[SampleGraph.get_neighboring_values] found_node = {center_node_id} is not in value " \
-                        f"list of this sample: {self._values.keys()}"
-                    assert found_node.get_id() != center_node_id, \
-                        f"[SampleGraph.get_neighboring_values] found_node = {found_node.get_id()} can't be equal " \
-                        f"center node, it look like bug "
-                    neighboring_values.append((found_node, edge))
-
-        neighboring_values_ids = [nv.get_id() for nv, _ in neighboring_values]
-        assert len(set(neighboring_values_ids)) == len(neighboring_values), \
-            f"[SampleGraph.get_neighboring_values] found neighboring values have duplication, " \
-            f"this should not happens since sample is not multi-graph, this is a bug, " \
-            f"neighboring_values_ids = {neighboring_values_ids}"
-
-        return neighboring_values
-
-    def get_similarity(self, other: 'SampleGraph') -> float:
-        """
-        Calculate how similar is this sample to other sample
-        :param other: other sample
-        :return: 0 - completely different, 1 - completely match
-        """
-        self_hash = self.get_hash()
-        other_hash = other.get_hash()
-        intersect_hash = self_hash.intersection(other_hash)
-        differ_hash = self_hash.symmetric_difference(other_hash)
-
+    def similarity(self, other: 'SampleGraph') -> float:
+        intersect_hash = self.hash.intersection(other.hash)
+        differ_hash = self.hash.symmetric_difference(other.hash)
         return len(intersect_hash) / (len(intersect_hash) + len(differ_hash))

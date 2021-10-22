@@ -21,8 +21,46 @@ created: 2021-10-18
 import os
 import unittest
 from copy import copy
+from typing import Any, Dict, Set, Tuple
 
-from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleBuilder, SampleGraph
+from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphBuilder, SampleGraph, \
+    SampleGraphComponentsProvider
+
+
+class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
+
+    def __init__(self, variables: Dict[Any, Set[Any]], relations: Set[Any]):
+        self.variables: Dict[Any, Set[Any]] = variables
+        self.relations: Set[Any] = relations
+        self.nodes: Dict[Tuple[Any, Any], ValueNode] = {}
+        self.edges: Dict[Tuple[frozenset[ValueNode], Any], RelationEdge] = {}
+
+    def get_node(self, variable: Any, value: Any) -> ValueNode:
+        assert variable in self.variables, \
+            f"[MockSampleGraphComponentsProvider.get_node] Unknown variable {variable}"
+        assert value in self.variables[variable], \
+            f"[MockSampleGraphComponentsProvider.get_node] Unknown value {value} of variable {variable}"
+
+        if (variable, value) in self.nodes:
+            return self.nodes[(variable, value)]
+        else:
+            node = ValueNode(variable, value)
+            self.nodes[(variable, value)] = node
+            return node
+
+    def get_edge(self, endpoints: frozenset[ValueNode], relation: Any) -> RelationEdge:
+        assert endpoints.issubset(self.nodes.values()), \
+            f"[MockSampleGraphComponentsProvider.get_edge] Endpoints nodes should be created first, " \
+            f"got {endpoints} where nodes {self.nodes}"
+        assert relation in self.relations, \
+            f"[MockSampleGraphComponentsProvider.get_node] Unknown relation {relation}"
+
+        if (endpoints, relation) in self.edges:
+            return self.edges[(endpoints, relation)]
+        else:
+            edge = RelationEdge(endpoints, relation)
+            self.edges[(endpoints, relation)] = edge
+            return edge
 
 
 class TestValueNode(unittest.TestCase):
@@ -32,10 +70,14 @@ class TestValueNode(unittest.TestCase):
     def test_init(self):
         self.assertEqual(self.a_1.variable, "a")
         self.assertEqual(self.a_1.value, "1")
-        with self.assertRaises(AssertionError):
-            ValueNode("a", {})
-        with self.assertRaises(AssertionError):
-            ValueNode({}, "1")
+        self.assertEqual(self.a_1.string_id, "a_1")
+
+        # TODO: Move to SampleGraphComponentsProvider
+        # with self.assertRaises(AssertionError):
+        #     ValueNode("a", {})
+        #
+        # with self.assertRaises(AssertionError):
+        #     ValueNode({}, "1")
 
     def test_hash(self):
         self.assertEqual(self.a_1.__hash__(), ("a", "1").__hash__())
@@ -44,9 +86,8 @@ class TestValueNode(unittest.TestCase):
         self.assertEqual(self.a_1.__repr__(), "(a_1)")
 
     def test_copy(self):
-        self.assertNotEqual(id(self.a_1), id(copy(self.a_1)))
-        self.assertEqual(self.a_1, copy(self.a_1))
-        self.assertEqual(self.a_1.__hash__(), copy(self.a_1).__hash__())
+        with self.assertRaises(AssertionError):
+            copy(self.a_1)
 
     def test_eq(self):
         a_1_1 = ValueNode("a", "1")
@@ -54,9 +95,9 @@ class TestValueNode(unittest.TestCase):
         self.assertNotEqual(id(a_1_1), id(a_1_2))
         self.assertEqual(a_1_1, a_1_2)
 
-    def test_with_replaced_value(self):
-        a_2 = self.a_1.with_replaced_value("2")
-        self.assertEqual(a_2.value, "2")
+    # def test_with_replaced_value(self):
+    #     a_2 = self.a_1.with_replaced_value("2")
+    #     self.assertEqual(a_2.value, "2")
 
 
 class TestRelationEdge(unittest.TestCase):
@@ -72,14 +113,16 @@ class TestRelationEdge(unittest.TestCase):
         self.assertTrue(self.e_1.a in {self.a_1, self.b_1})
         self.assertTrue(self.e_1.b in {self.a_1, self.b_1})
         self.assertNotEqual(self.e_1.a, self.e_1.b)
-        with self.assertRaises(AssertionError):
-            RelationEdge(frozenset({self.b_1}), "r")
-        with self.assertRaises(AssertionError):
-            RelationEdge(frozenset({self.a_1, self.a_1}), "r")
-        with self.assertRaises(AssertionError):
-            RelationEdge(frozenset({self.b_1, self.b_2}), "r")
-        with self.assertRaises(AssertionError):
-            RelationEdge(frozenset({self.b_1, self.b_2}), {})
+
+        # TODO: Move to SampleGraphComponentsProvider
+        # with self.assertRaises(AssertionError):
+        #     RelationEdge(frozenset({self.b_1}), "r")
+        # with self.assertRaises(AssertionError):
+        #     RelationEdge(frozenset({self.a_1, self.a_1}), "r")
+        # with self.assertRaises(AssertionError):
+        #     RelationEdge(frozenset({self.b_1, self.b_2}), "r")
+        # with self.assertRaises(AssertionError):
+        #     RelationEdge(frozenset({self.b_1, self.b_2}), {})
 
     def test_hash(self):
         self.assertEqual(self.e_1.__hash__(), (frozenset({self.a_1, self.b_1}), "r").__hash__())
@@ -88,9 +131,8 @@ class TestRelationEdge(unittest.TestCase):
         self.assertEqual(self.e_1.__repr__(), "(a_1)--{r}--(b_1)")
 
     def test_copy(self):
-        self.assertNotEqual(id(self.e_1), id(copy(self.e_1)))
-        self.assertEqual(self.e_1, copy(self.e_1))
-        self.assertEqual(self.e_1.__hash__(), copy(self.e_1).__hash__())
+        with self.assertRaises(AssertionError):
+            copy(self.e_1)
 
     def test_eq(self):
         e_1_1 = RelationEdge(frozenset({self.a_1, self.b_1}), "r")
@@ -105,106 +147,148 @@ class TestRelationEdge(unittest.TestCase):
     def test_opposite_endpoint(self):
         self.assertEqual(self.e_1.opposite_endpoint(self.a_1), self.b_1)
         self.assertEqual(self.e_1.opposite_endpoint(self.b_1), self.a_1)
+        self.assertEqual(self.e_1.opposite_endpoint(self.b_2), None)
 
-    def test_with_replaced_values(self):
-        self.assertEqual(
-            self.e_1.with_replaced_values({"a": ("1", "3"), "b": ("1", "4")}),
-            RelationEdge(frozenset({ValueNode("a", "3"), ValueNode("b", "4")}), "r")
-        )
+    # def test_with_replaced_values(self):
+    #     self.assertEqual(
+    #         self.e_1.with_replaced_values({"a": "3", "b": "4"}),
+    #         RelationEdge(frozenset({ValueNode("a", "3"), ValueNode("b", "4")}), "r")
+    #     )
 
 
-class TestSampleBuilder(unittest.TestCase):
+class TestSampleGraphBuilder(unittest.TestCase):
 
-    a_1 = ValueNode("a", "1")
-    b_1 = ValueNode("b", "1")
-    e_1 = RelationEdge(frozenset({a_1, b_1}), "r")
+    builder = MockSampleGraphComponentsProvider(
+        {"a": {"1", "2"}, "b": {"1"}, "c": {"1"}, "d": {"1"}, "f": {"1"}},
+        {"r", "s"})
+    a_1 = builder.get_node("a", "1")
+    b_1 = builder.get_node("b", "1")
+    c_1 = builder.get_node("c", "1")
+    e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
+    e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
 
     def test_init(self):
-        s_1 = SampleBuilder("s", {self.a_1, self.b_1}, {self.e_1}).build()
+        s_1 = SampleGraphBuilder(self.builder, "s", {self.a_1, self.b_1}, {self.e_1}).build()
         self.assertEqual(s_1.name, "s")
         self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1}))
+        self.assertEqual({id(n) for n in s_1.nodes}, {id(n) for n in {self.a_1, self.b_1}})
         self.assertEqual(s_1.edges, frozenset({self.e_1}))
+        self.assertEqual({id(e) for e in s_1.edges}, {id(self.e_1)})
+
+    def test_copy(self):
+        b_1 = SampleGraphBuilder(self.builder, "s", {self.a_1, self.b_1}, {self.e_1})
+        b_2 = copy(b_1)
+        self.assertNotEqual(id(b_1), id(b_2))
+        self.assertEqual(b_1.build(), b_2.build())
 
     def test_set_name(self):
-        s_1 = SampleBuilder(None, {self.a_1})\
+        s_1 = SampleGraphBuilder(self.builder, None, {self.a_1})\
             .set_name("s")\
             .build()
         self.assertEqual(s_1.name, "s")
 
-    def test_add_value(self):
-        s_1 = SampleBuilder() \
-            .add_value(self.a_1.variable, self.a_1.value) \
-            .build()
+    def test_build_single_node(self):
+        s_1 = SampleGraphBuilder(self.builder) \
+            .build_single_node("a", "1")
         self.assertEqual(s_1.nodes, frozenset({self.a_1}))
+        self.assertEqual({id(e) for e in s_1.nodes}, {id(self.a_1)})
 
     def test_add_relation(self):
-        s_1 = SampleBuilder() \
-            .add_value(self.a_1.variable, self.a_1.value) \
-            .add_value(self.b_1.variable, self.b_1.value) \
-            .add_relation(
-                {(self.a_1.variable, self.a_1.value), (self.b_1.variable, self.b_1.value)},
-                self.e_1.relation) \
-            .build()
-        self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1}))
-        self.assertEqual(s_1.edges, frozenset({self.e_1}))
-
-    def test_connected_nodes(self):
-        s_1 = SampleBuilder() \
-            .add_value("a", "1") \
-            .add_value("b", "1") \
-            .add_value("c", "1") \
-            .add_value("d", "1") \
+        b_1 = SampleGraphBuilder(self.builder) \
             .add_relation({("a", "1"), ("b", "1")}, "r") \
             .add_relation({("b", "1"), ("c", "1")}, "r")
-        self.assertEqual(
-            s_1.connected_nodes(ValueNode("a", "1")),
-            {ValueNode("a", "1"), ValueNode("b", "1"), ValueNode("c", "1")})
-        self.assertEqual(
-            s_1.connected_nodes(ValueNode("d", "1")),
-            {ValueNode("d", "1")})
+        s_1 = b_1.build()
 
-    def test_is_connected(self):
-        self.assertTrue(SampleBuilder()
-                        .add_value("a", "1").add_value("b", "1").add_relation({("a", "1"), ("b", "1")}, "r")
-                        .is_connected())
-        self.assertTrue(SampleBuilder()
-                        .add_value("a", "1")
-                        .is_connected())
-        self.assertFalse(SampleBuilder()
-                         .is_connected())
-        self.assertFalse(SampleBuilder()
-                         .add_value("a", "1").add_value("b", "1")
-                         .is_connected())
-        self.assertFalse(SampleBuilder()
-                         .add_value("a", "1").add_value("b", "1").add_value("c", "1")
-                         .add_relation({("a", "1"), ("b", "1")}, "r")
-                         .is_connected())
+        self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
+        self.assertEqual({id(n) for n in s_1.nodes}, {id(n) for n in {self.a_1, self.b_1, self.c_1}})
+        self.assertEqual(s_1.edges, frozenset({self.e_1, self.e_2}))
+        self.assertEqual({id(e) for e in s_1.edges}, {id(e) for e in {self.e_1, self.e_2}})
 
-    def test_build(self):
-        with self.assertRaises(AssertionError):
-            SampleBuilder().add_value("a", "1").add_value("b", "1").build()
+        b_1.add_relation({("c", "1"), ("d", "1")}, "s")
+        s_2 = b_1.build()
+
+        self.assertTrue(("d", "1") in [(n.variable, n.value) for n in s_2.nodes])
+        self.assertTrue("s" in [e.relation for e in s_2.edges])
+
+        with self.assertRaises(AssertionError):  # len(endpoints) != 2
+            b_1.add_relation({("c", "1")}, "r")
+
+        with self.assertRaises(AssertionError):  # len(endpoints) != 2
+            b_1.add_relation({("a", "1"), ("b", "1"), ("c", "1")}, "r")
+
+        with self.assertRaises(AssertionError):  # len({var for var, _ in endpoints}) != 2
+            b_1.add_relation({("a", "1"), ("a", "2")}, "r")
+
+        with self.assertRaises(AssertionError):  # nodes.isdisjoint(self._nodes)
+            SampleGraphBuilder(self.builder) \
+                .add_relation({("a", "1"), ("b", "1")}, "r") \
+                .add_relation({("c", "1"), ("d", "1")}, "r")
+
+        with self.assertRaises(AssertionError):  # edge in self._edges
+            SampleGraphBuilder(self.builder) \
+                .add_relation({("a", "1"), ("b", "1")}, "r") \
+                .add_relation({("a", "1"), ("b", "1")}, "r")
+
+    # def test_connected_nodes(self):
+    #     s_1 = SampleGraphBuilder() \
+    #         .add_value("a", "1") \
+    #         .add_value("b", "1") \
+    #         .add_value("c", "1") \
+    #         .add_value("d", "1") \
+    #         .add_relation({("a", "1"), ("b", "1")}, "r") \
+    #         .add_relation({("b", "1"), ("c", "1")}, "r")
+    #
+    #     self.assertEqual(
+    #         s_1.connected_nodes(ValueNode("a", "1")),
+    #         {ValueNode("a", "1"), ValueNode("b", "1"), ValueNode("c", "1")})
+    #
+    #     self.assertEqual(
+    #         s_1.connected_nodes(ValueNode("d", "1")),
+    #         {ValueNode("d", "1")})
+
+    # def test_is_connected(self):
+    #     self.assertTrue(SampleGraphBuilder()
+    #                     .add_value("a", "1").add_value("b", "1").add_relation({("a", "1"), ("b", "1")}, "r")
+    #                     .is_connected())
+    #
+    #     self.assertTrue(SampleGraphBuilder()
+    #                     .add_value("a", "1")
+    #                     .is_connected())
+    #
+    #     self.assertFalse(SampleGraphBuilder()
+    #                      .is_connected())
+    #
+    #     self.assertFalse(SampleGraphBuilder()
+    #                      .add_value("a", "1").add_value("b", "1")
+    #                      .is_connected())
+    #
+    #     self.assertFalse(SampleGraphBuilder()
+    #                      .add_value("a", "1").add_value("b", "1").add_value("c", "1")
+    #                      .add_relation({("a", "1"), ("b", "1")}, "r")
+    #                      .is_connected())
+
+    # def test_build(self):
+    #     with self.assertRaises(AssertionError):
+    #         SampleGraphBuilder().add_value("a", "1").add_value("b", "1").build()
 
 
 class TestSampleGraph(unittest.TestCase):
 
-    a_1 = ValueNode("a", "1")
-    b_1 = ValueNode("b", "1")
-    c_1 = ValueNode("c", "1")
-    e_1 = RelationEdge(frozenset({a_1, b_1}), "r")
-    e_2 = RelationEdge(frozenset({b_1, c_1}), "r")
-    s_1 = SampleGraph(frozenset({a_1, b_1}), frozenset({e_1}), "s_1")
+    builder = MockSampleGraphComponentsProvider(
+        {"a": {"1", "5"}, "b": {"1", "7"}, "c": {"1"}, "d": {"1"}, "f": {"1"}},
+        {"r", "g", "b"})
+    a_1 = builder.get_node("a", "1")
+    b_1 = builder.get_node("b", "1")
+    c_1 = builder.get_node("c", "1")
+    e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
+    e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
+    s_1 = SampleGraph(builder, frozenset({a_1, b_1}), frozenset({e_1}), "s_1")
 
     def test_init(self):
         self.assertEqual(self.s_1.nodes, frozenset({self.a_1, self.b_1}))
         self.assertEqual(self.s_1.edges, frozenset({self.e_1}))
         self.assertEqual(self.s_1.hash, frozenset({self.a_1, self.b_1, self.e_1}))
         self.assertEqual(self.s_1.name, "s_1")
-        with self.assertRaises(AssertionError):
-            SampleGraph(frozenset({}), frozenset({}), None)
-        with self.assertRaises(AssertionError):
-            SampleGraph(frozenset({ValueNode("a", "1"),  ValueNode("a", "2")}), frozenset({}), None)
-        with self.assertRaises(AssertionError):
-            SampleGraph(frozenset({ValueNode("c", "1"),  ValueNode("d", "1")}), frozenset({self.e_1}), None)
 
     def test_hash(self):
         self.assertEqual(self.s_1.__hash__(), self.s_1.hash.__hash__())
@@ -212,94 +296,113 @@ class TestSampleGraph(unittest.TestCase):
     def test_repr(self):
         self.assertEqual(self.s_1.__repr__(), "s_1")
         self.assertEqual(
-            SampleGraph(frozenset({self.a_1, self.b_1, self.c_1}), frozenset({self.e_1, self.e_2}), None).__repr__(),
+            SampleGraph(
+                self.builder,
+                frozenset({self.a_1, self.b_1, self.c_1}),
+                frozenset({self.e_1, self.e_2}),
+                None).__repr__(),
             "{(a_1)--{r}--(b_1); (b_1)--{r}--(c_1)}")
 
     def test_copy(self):
-        self.assertNotEqual(id(self.s_1), id(copy(self.s_1)))
-        self.assertEqual(self.s_1, copy(self.s_1))
-        self.assertEqual(self.s_1.hash, copy(self.s_1).hash)
+        with self.assertRaises(AssertionError):
+            copy(self.s_1)
 
     def test_eq(self):
-        s_1_1 = SampleGraph(frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), None)
-        s_1_2 = SampleGraph(frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), None)
+        s_1_1 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), None)
+        s_1_2 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), None)
         self.assertNotEqual(id(s_1_1), id(s_1_2))
         self.assertEqual(s_1_1, s_1_2)
 
     def test_text_view(self):
-        self.assertEqual(SampleGraph(frozenset({self.a_1}), frozenset(), None).text_view(), "{(a_1)}")
+        self.assertEqual(SampleGraph(self.builder, frozenset({self.a_1}), frozenset(), None).text_view(), "{(a_1)}")
         self.assertEqual(self.s_1.text_view(),  "{" + os.linesep + "    (a_1)--{r}--(b_1)" + os.linesep + "}")
 
     def test_builder(self):
         b_1 = self.s_1.builder()
-        b_1.add_value("f", "1")
         b_1.add_relation({("b", "1"), ("f", "1")}, "g")
         s_2 = b_1.build()
-        self.assertTrue(ValueNode("f", "1") in s_2.nodes)
-        self.assertTrue(RelationEdge(frozenset({self.b_1, ValueNode("f", "1")}), "g") in s_2.edges)
+        self.assertTrue(("f", "1") in {(n.variable, n.value) for n in s_2.nodes})
+        self.assertTrue("g" in [e.relation for e in s_2.edges])
 
     def test_is_subgraph(self):
         self.assertTrue(
             self.s_1.is_subgraph(
-                SampleGraph(frozenset({self.a_1, self.b_1, self.c_1}), frozenset({self.e_1, self.e_2}), None)))
+                SampleGraph(
+                    self.builder,
+                    frozenset({self.a_1, self.b_1, self.c_1}), frozenset({self.e_1, self.e_2}), None)))
+
         self.assertFalse(
-            self.s_1.is_subgraph(SampleGraph(frozenset({self.a_1}), frozenset({}), None)))
+            self.s_1.is_subgraph(SampleGraph(self.builder, frozenset({self.a_1}), frozenset({}), None)))
 
     def test_contains_variable(self):
         self.assertTrue(self.s_1.contains_variable("a"))
         self.assertFalse(self.s_1.contains_variable("not_in_graph"))
 
-    def test_with_replaced_values(self):
-        s_2 = self.s_1.with_replaced_values({"a": ("1", "5"), "b": ("1", "7")}, "s_2")
+    def test_value_for_variable(self):
+        self.assertEqual(self.s_1.value_for_variable("a"), "1")
+        self.assertEqual(self.s_1.value_for_variable("b"), "1")
+        self.assertEqual(self.s_1.value_for_variable("not_in_graph"), None)
+
+    def test_transform_with_replaced_values(self):
+        s_1 = SampleGraph(
+            self.builder,
+            frozenset({self.a_1, self.b_1, self.c_1}),
+            frozenset({self.e_1, self.e_2}),
+            "s_1")
+
+        s_2 = s_1.transform_with_replaced_values({"a": "5", "b": "7"}, "s_2")
+
+        self.assertNotEqual(id(s_2), id(s_1))
+        self.assertTrue(id(self.c_1) in {id(n) for n in s_2.nodes})
+
         self.assertEqual(
-            s_2.nodes,
-            frozenset({ValueNode("a", "5"), ValueNode("b", "7")}))
+            {(n.variable, n.value) for n in s_2.nodes},
+            {("a", "5"), ("b", "7"), ("c", "1")})
+
         self.assertEqual(
-            s_2.edges,
-            frozenset({RelationEdge(frozenset({ValueNode("a", "5"), ValueNode("b", "7")}), "r")}))
-        self.assertEqual(s_2.name, "s_2")
+            {frozenset({(n.variable, n.value) for n in e.endpoints}) for e in s_2.edges},
+            {frozenset({("a", "5"), ("b", "7")}), frozenset({("b", "7"), ("c", "1")})})
+
+        self.assertEqual(id(s_1.transform_with_replaced_values({}, "s_2")), id(s_1))
+        self.assertEqual(id(s_1.transform_with_replaced_values({"x": "1"}, "s_2")), id(s_1))
 
     def test_neighboring_values(self):
-        s = SampleBuilder()\
-            .add_value("a", "1")\
-            .add_value("b", "1")\
-            .add_value("c", "1")\
-            .add_value("d", "1")\
+        s = SampleGraphBuilder(self.builder)\
             .add_relation({("a", "1"), ("b", "1")}, "r")\
             .add_relation({("a", "1"), ("c", "1")}, "g")\
             .add_relation({("a", "1"), ("d", "1")}, "b")\
             .build()
 
-        self.assertEqual(
-            s.neighboring_values(ValueNode("a", "1")), {
-                ValueNode("b", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("b", "1")}), "r"),
-                ValueNode("c", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("c", "1")}), "g"),
-                ValueNode("d", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("d", "1")}), "b")})
-        self.assertEqual(
-            s.neighboring_values(ValueNode("b", "1")), {
-                ValueNode("a", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("b", "1")}), "r")})
+        gn = self.builder.get_node
+        ge = self.builder.get_edge
 
         self.assertEqual(
-            s.neighboring_values(ValueNode("a", "1"), ["r", "g"]), {
-                ValueNode("b", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("b", "1")}), "r"),
-                ValueNode("c", "1"): RelationEdge(frozenset({ValueNode("a", "1"), ValueNode("c", "1")}), "g")})
+            s.neighboring_values(gn("a", "1")), {
+                gn("b", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r"),
+                gn("c", "1"): ge(frozenset({gn("a", "1"), gn("c", "1")}), "g"),
+                gn("d", "1"): ge(frozenset({gn("a", "1"), gn("d", "1")}), "b")})
+
+        self.assertEqual(
+            s.neighboring_values(self.builder.get_node("b", "1")), {
+                gn("a", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r")})
+
+        self.assertEqual(
+            s.neighboring_values(self.builder.get_node("a", "1"), ["r", "g"]), {
+                gn("b", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r"),
+                gn("c", "1"): ge(frozenset({gn("a", "1"), gn("c", "1")}), "g")})
 
     def test_similarity(self):
-        s_1 = SampleBuilder() \
-            .add_value("a", "1") \
-            .add_value("b", "1") \
-            .add_value("c", "1") \
+        s_1 = SampleGraphBuilder(self.builder) \
             .add_relation({("a", "1"), ("b", "1")}, "r") \
             .add_relation({("a", "1"), ("c", "1")}, "r") \
             .build()
-        s_2 = SampleBuilder() \
-            .add_value("a", "1") \
-            .add_value("b", "1") \
+
+        s_2 = SampleGraphBuilder(self.builder) \
             .add_relation({("a", "1"), ("b", "1")}, "r") \
             .build()
-        s_3 = SampleBuilder() \
-            .add_value("a", "1") \
-            .build()
+
+        s_3 = SampleGraphBuilder(self.builder) \
+            .build_single_node("a", "1") \
 
         self.assertEqual(s_1.similarity(s_2), 0.6)
         self.assertEqual(s_1.similarity(s_3), 0.2)

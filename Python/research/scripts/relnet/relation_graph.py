@@ -20,98 +20,147 @@ created: 2021-08-09
 
 import copy
 from collections import Hashable
-from typing import List, Dict, Set, Any, Tuple, Optional
+from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from pyvis.network import Network
-from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder
+from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider
 
 
-# TODO Новый рефактроинг:
-# TODO  1) RelationGraphBuilder предоставляет SampleGraphBuilder методы для получения ValueNode и RelationEdge
-# TODO     они создаются один раз и затем кешируются, что будет экономить память
-# TODO     Нужно создать интерфейс и передовать через парамтры в билдер.
-# TODO  2) RelationGraphBuilder имеет метод .sample_builder() -> SampleGraphBuilder
-# TODO  3) RelationGraphBuilder имеет метод .build_sample(lambda: Callable[SampleGraphBuilder, [SampleGraph]])
-# TODO  4) В SampleGraphBuilder мы просто соеденяем ValueNode при помощи RelationEdge (полученых из кеша),
-# TODO     т.е. по сути SampleGraph просто колекция ссылок на ValueNode и RelationEdge.
-# TODO     так можно сэкономить память, сразу же валидировать связаность SampleGraph (при добавлении ребра).
-# TODO  5) SampleGraphBuilder имеет метод .build_single_node() -> SampleGraph, создаёт граф из одной ноды
-# TODO     и метод add_relation() как он есть и здесь проверяется связаность, и build() который
-# TODO     проверят только что семпл граф не пустой.
-# TODO
-# TODO
-# TODO
-# TODO
-# TODO
-# TODO
+class BuilderComponentsProvider(SampleGraphComponentsProvider):
+    """
+    Implementation of sample graph components provider
+    """
+
+    def __init__(self, variables: Dict[Any, Set[Any]], relations: Set[Any]):
+
+        assert variables, \
+            f"[BuilderComponentsProvider.__init__] Set of variables should not be empty."
+        for var, values in variables.items():
+            assert isinstance(var, Hashable), \
+                f"[BuilderComponentsProvider.__init__] Variable '{var}' should be hashable"
+            assert values, \
+                f"[BuilderComponentsProvider.__init__] Set of variable values should not be empty, found for {var}"
+            for val in values:
+                assert isinstance(val, Hashable), \
+                    f"[BuilderComponentsProvider.__init__] Value '{val}' of variable '{var}' should be hashable"
+        assert relations, \
+            f"[BuilderComponentsProvider.__init__] Set of relations should not be empty."
+        for rel in relations:
+            assert isinstance(rel, Hashable), \
+                f"[BuilderComponentsProvider.__init__] Relation '{rel}' should be hashable"
+
+        self.variables: Dict[Any, Set[Any]] = variables
+        self.relations: Set[Any] = relations
+        self.nodes: Dict[Tuple[Any, Any], ValueNode] = {}
+        self.edges: Dict[Tuple[frozenset[ValueNode], Any], RelationEdge] = {}
+
+    def get_node(self, variable: Any, value: Any) -> ValueNode:
+        assert variable in self.variables, \
+            f"[BuilderComponentsProvider.get_node] Unknown variable {variable}"
+        assert value in self.variables[variable], \
+            f"[BuilderComponentsProvider.get_node] Unknown value {value} of variable {variable}"
+
+        if (variable, value) in self.nodes:
+            return self.nodes[(variable, value)]
+        else:
+            node = ValueNode(variable, value)
+            self.nodes[(variable, value)] = node
+            return node
+
+    def get_edge(self, endpoints: frozenset[ValueNode], relation: Any) -> RelationEdge:
+        assert endpoints.issubset(self.nodes.values()), \
+            f"[BuilderComponentsProvider.get_edge] Endpoints nodes should be created first, " \
+            f"got {endpoints} where nodes {self.nodes}"
+        assert relation in self.relations, \
+            f"[BuilderComponentsProvider.get_node] Unknown relation {relation}"
+
+        if (endpoints, relation) in self.edges:
+            return self.edges[(endpoints, relation)]
+        else:
+            edge = RelationEdge(endpoints, relation)
+            self.edges[(endpoints, relation)] = edge
+            return edge
 
 
 class RelationGraphBuilder:
+    """
+    Mutable builder for composing of the relation graphs
+    """
 
     def __init__(
             self,
             variables: Dict[Any, Set[Any]],
             relations: Set[Any],
             name: Optional[str] = None,
-            outcomes: Dict[SampleGraph, int] = None
+            outcomes: Dict[SampleGraph, int] = None,
+            components_provider: Optional[SampleGraphComponentsProvider] = None,
     ):
-        for var, values in variables.items():
-            assert isinstance(var, Hashable), \
-                f"[RelationGraphBuilder.__init__] Variable '{var}' should be hashable"
-            assert values, \
-                f"[RelationGraphBuilder.__init__] Set of variable values should not be empty, found for {var}"
-            for val in values:
-                assert isinstance(val, Hashable), \
-                    f"[RelationGraphBuilder.__init__] Value '{val}' of variable '{var}' should be hashable"
-        assert relations, \
-            f"[RelationGraphBuilder.__init__] Set of relations should not be empty."
-        for rel in relations:
-            assert isinstance(rel, Hashable), \
-                f"[RelationGraphBuilder.__init__] Relation '{rel}' should be hashable"
-
         self._variables: Dict[Any, Set[Any]] = variables
         self._relations: Set[Any] = relations
         self._name: Optional[str] = name
         self._outcomes: Dict[SampleGraph, int] = outcomes if outcomes else {}
         self._id_counter = 0
+        self._components_provider = components_provider if components_provider \
+            else BuilderComponentsProvider(variables, relations)
 
     def next_id(self) -> int:
+        """
+        Generate unique int ID for whatever reason
+        :return: unique int ID
+        """
         self._id_counter += 1
         return self._id_counter
 
-    def can_be_added(self, outcome: SampleGraph) -> Optional[str]:
-        for node in outcome.nodes:
-            if node.variable not in self._variables:
-                return f"Variable {node.variable} of node {node} not in list of variables {self._variables}"
-            if node.value not in self._variables[node.variable]:
-                return f"Value {node.value} of node {node} not in list of values {self._variables[node.variable]}"
+    def add_outcome(self, outcome: SampleGraph, count: int = 1) -> 'RelationGraphBuilder':
+        """
+        Will add to relation graph
+        :param outcome: outcome to be added, should be created with same SampleGraphComponentsProvider
+        :param count: outcome count, should be >= 1
+        :return: self
+        """
+        assert outcome.is_compatible(self._components_provider), \
+            f"[RelationGraphBuilder.add_outcome] Outcome {outcome} is not compatible with this relation graph, " \
+            f"since it vas created with using another SampleGraphComponentsProvider"
+        assert count >= 1, \
+            f"[RelationGraphBuilder.add_outcome] Expect count be >= 1, but got {count}"
 
-        for edge in outcome.edges:
-            if edge.relation not in self._relations:
-                return f"Relation {edge.relation} not in list of relations {self._relations}"
-
-    def add_outcome_unsafe(self, outcome: SampleGraph, count: int = 1) -> 'RelationGraphBuilder':
         if outcome in self._outcomes:
             self._outcomes[outcome] += count
         else:
             self._outcomes[outcome] = count
         return self
 
-    def add_outcomes_unsafe(self, outcomes: List[SampleGraph]) -> 'RelationGraphBuilder':
+    def add_outcomes(self, outcomes: List[SampleGraph], count: int = 1) -> 'RelationGraphBuilder':
+        """
+        To add multiple outcomes with same count
+        :param outcomes: list of outcomes
+        :param count: count for each outcome, should be >= 1
+        :return: self
+        """
         for outcome in outcomes:
-            self.add_outcome_unsafe(outcome)
+            self.add_outcome(outcome, count)
         return self
 
-    def add_outcome(self, outcome: SampleGraph, count: int = 1) -> 'RelationGraphBuilder':
-        assert count >= 1, \
-            f"[RelationGraphBuilder.add_outcome] Count '{count}' should be >= 1"
-        cant_be_added_reason = self.can_be_added(outcome)
-        assert not cant_be_added_reason, \
-            f"[RelationGraphBuilder.add_outcome] Outcome can't be added since: {cant_be_added_reason}"
+    def sample_builder(self) -> SampleGraphBuilder:
+        """
+        Create new SampleGraphBuilder
+        :return: new SampleGraphBuilder
+        """
+        return SampleGraphBuilder(self._components_provider)
 
-        return self.add_outcome_unsafe(outcome, count)
+    def build_sample(self, build: Callable[[SampleGraphBuilder], SampleGraph]) -> 'RelationGraphBuilder':
+        """
+        Will call provided build function with injection of new SampleGraphBuilder
+        :param build: build function SampleGraphBuilder -> SampleGraph
+        :return: self
+        """
+        return self.add_outcome(build(SampleGraphBuilder(self._components_provider)))
 
     def generate_all_possible_outcomes(self) -> 'RelationGraphBuilder':
+        """
+        Will generate all possible outcomes on relation graph set of variables and they values
+        :return: self, with generated outcomes
+        """
         assert not self._outcomes, \
             f"[RelationGraphBuilder.generate_all_possible_outcomes] Builder should not have outcomes added, " \
             f"found {len(self._outcomes)}"
@@ -119,41 +168,37 @@ class RelationGraphBuilder:
         indexed_variables = [(var, list(values)) for var, values in self._variables]
         indexed_relations = list(self._relations)
 
-        all_nodes: List[ValueNode] = [ValueNode(var, values[0]) for var, values in indexed_variables]
-        all_edges: List[(ValueNode, ValueNode)] = [(n_1, n_2) for n_2 in all_nodes for n_1 in all_nodes]
+        all_nodes: List[(Any, Any)] = [(var, values[0]) for var, values in indexed_variables]
+        all_endpoints: List[Set[(Any, Any)]] = [{n_1, n_2} for n_2 in all_nodes for n_1 in all_nodes]
 
-        index_acc: List[int] = [-1 for _ in range(0,  len(all_edges))]
+        index_acc: List[int] = [-1 for _ in range(0,  len(all_endpoints))]
         edges_indices: List[List[int]] = []
 
-        while set([i < (len(indexed_relations) - 1) for i in index_acc]) != {False} and len(all_edges) != 0:
+        while set([i < (len(indexed_relations) - 1) for i in index_acc]) != {False} and len(all_endpoints) != 0:
             i = 0
-            while index_acc[i] >= (len(indexed_relations) - 1) and i < len(all_edges):
+            while index_acc[i] >= (len(indexed_relations) - 1) and i < len(all_endpoints):
                 index_acc[i] = -1
                 i += 1
             index_acc[i] += 1
             edges_indices.append(index_acc.copy())
 
-        for node in all_nodes:
-            self.add_outcome_unsafe(
-                SampleGraphBuilder(nodes={node}, name=f"O_{self.next_id()}").build_unsafe())
+        for var, val in all_nodes:  # To add all single node samples
+            self.build_sample(lambda b: b.set_name(f"O_{self.next_id()}").build_single_node(var, val))
 
         for edges_index in edges_indices:
-            active_edges = {
-                RelationEdge(frozenset(all_edges[j]), indexed_relations[edges_index[j]])
+            active_edges: frozenset[(frozenset[(Any, Any)], Any)] = frozenset({
+                (frozenset(all_endpoints[j]), indexed_relations[edges_index[j]])
                 for j in range(0, len(edges_index))
-                if edges_index[j] >= 0}
-
-            builder = SampleGraphBuilder(
-                nodes=set([n for e in active_edges for n in e.endpoints]),
-                edges=active_edges)
-
-            if builder.is_connected():
-                self.add_outcome_unsafe(
-                    builder.set_name(f"O_{self.next_id()}").build_unsafe())
+                if edges_index[j] >= 0})
+            builder = self.sample_builder()
+            if builder.is_edges_connected(active_edges):
+                self.add_outcome(
+                    builder.set_name(f"O_{self.next_id()}").build_from_edges(
+                        active_edges, validate_connectivity=False))
 
         for var, values in indexed_variables:
-            self.add_outcomes_unsafe([
-                outcome.with_replaced_values({var: val}, f"O_{self.next_id()}")
+            self.add_outcomes([
+                outcome.transform_with_replaced_values({var: val}, f"O_{self.next_id()}")
                 for val in values[1:]   # Iterate over all value except first
                 for outcome in self._outcomes])
 
@@ -163,6 +208,13 @@ class RelationGraphBuilder:
         return self
 
     def build(self) -> 'RelationGraph':
+        """
+        Build relation graph from added outcomes
+        :return: built relation graph
+        """
+        assert self._outcomes, \
+            f"[RelationGraphBuilder.build] relation graph should have at least 1 outcome"
+
         return RelationGraph(
             self._name,
             frozenset({(k, frozenset(v)) for k, v in self._variables.items()}),

@@ -20,6 +20,7 @@ created: 2021-10-18
 
 import os
 from abc import abstractmethod, ABC
+from collections import defaultdict
 from typing import Dict, List, Set, Any, Optional, Tuple
 
 from pyvis.network import Network
@@ -31,13 +32,6 @@ class ValueNode:
     """
 
     def __init__(self, variable: Any, value: Any):
-
-        # TODO: Move to SampleGraphComponentsProvider
-        # assert isinstance(variable, Hashable), \
-        #     f"[ValueNode.add_value] Variable '{variable}' should be hashable"
-        # assert isinstance(value, Hashable), \
-        #     f"[ValueNode.add_value] Value '{value}' should be hashable"
-
         self.variable: Any = variable
         self.value: Any = value
         self.string_id: str = f"{variable}_{value}"
@@ -58,14 +52,6 @@ class ValueNode:
             return self.variable == other.variable and self.value == other.value
         return False
 
-    # def with_replaced_value(self, new_value: Any) -> 'ValueNode':
-    #     """
-    #     Creates new instance of ValueNode with replace self.value on new_value
-    #     :param new_value:
-    #     :return: new ValueNode with updated value
-    #     """
-    #     return ValueNode(copy.deepcopy(self.variable), new_value)
-
 
 class RelationEdge:
     """
@@ -73,20 +59,6 @@ class RelationEdge:
     """
 
     def __init__(self, endpoints: frozenset[ValueNode], relation: Any):
-
-        # TODO: Move to SampleGraphComponentsProvider
-        # endpoints_list = list(endpoints)
-        # assert len(endpoints) == 2, \
-        #     f"[RelationEdge.add_relation] Set of endpoints to be connected should have size exactly 2, " \
-        #     f"but got {len(endpoints)}"
-        # assert isinstance(relation, Hashable), \
-        #     f"[RelationEdge.add_relation] Relation '{relation}' should be hashable"
-        # assert endpoints_list[0] != endpoints_list[1], \
-        #     f"[RelationEdge.add_relation] Endpoints for relation should not be the same node: {endpoints}"
-        # assert endpoints_list[0].variable != endpoints_list[1].variable, \
-        #     f"[RelationEdge.add_relation] It is impossible to connect two values belong to same variable, " \
-        #     f"found same variable in endpoints: {endpoints}"
-
         endpoints_list = list(endpoints)
         self.endpoints: frozenset[ValueNode] = endpoints
         self.relation: Any = relation
@@ -129,18 +101,6 @@ class RelationEdge:
         if self.b == node:
             return self.a
         return None
-
-    # def with_replaced_values(self, to_replace: Dict[Any, Any]) -> 'RelationEdge':
-    #     """
-    #     Will return copy of this edge with replaced values in endpoint nodes
-    #     :param to_replace: Dict[variable, new_variable_value]
-    #     :return: copy of RelationEdge with
-    #     """
-    #     return RelationEdge(
-    #         frozenset({
-    #             (n.with_replaced_value(to_replace[n.variable]) if n.variable in to_replace else copy.deepcopy(n))
-    #             for n in self.endpoints}),
-    #         copy.deepcopy(self.relation))
 
 
 class SampleGraphComponentsProvider(ABC):
@@ -198,38 +158,80 @@ class SampleGraphBuilder:
             frozenset({}),
             self._name)
 
-    # def add_value(self, variable: Any, value: Any) -> 'SampleGraphBuilder':
-    #     node = ValueNode(variable, value)
-    #
-    #     assert node not in self._nodes, \
-    #         f"[SampleGraphBuilder.add_value] Node {node} already added to nodes: {self._nodes}"
-    #     assert variable not in {n.variable for n in self._nodes}, \
-    #         f"[SampleGraphBuilder.add_value] Variable {variable} already added. Each variable can be used only once."
-    #
-    #     self._tracing_map[node] = set({})
-    #     self._nodes.add(node)
-    #     return self
+    @staticmethod
+    def is_edges_connected(edges: frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]]) -> bool:
+        """
+        Will to trace given edges to ensure that the graph they formed are connected
+        :param edges: Set[(endpoints, relation)]
+        :return: True if graph connected and False otherwise
+        """
+        tracing_map = defaultdict(set)
+        traced: Set[(Any, Any)] = set({})
 
-    def add_relation(self, endpoints: Set[Tuple[Any, Any]], relation: Any) -> 'SampleGraphBuilder':
+        for endpoints in [list(endpoints) for endpoints, _ in edges]:
+            tracing_map[endpoints[0]].add(endpoints[1])
+            tracing_map[endpoints[1]].add(endpoints[0])
+
+        def trace(start_node: (Any, Any)):
+            if start_node not in traced:
+                traced.add(start_node)
+                for next_node in tracing_map[start_node]:
+                    trace(next_node)
+
+        trace(next(iter(tracing_map.keys())))
+        return len(tracing_map) == len(traced)
+
+    @staticmethod
+    def validate_endpoints(endpoints: frozenset[Tuple[Any, Any]]) -> None:
+        """
+        Will validate given endpoints and in case invalid will raise AssertionError
+        :param endpoints: frozenset[(variable, value))])
+        :return: None if all OK or raise AssertionError
+        """
+        assert len(endpoints) == 2, \
+            f"[SampleGraphBuilder.validate_endpoints] Exactly 2 endpoint should be passed, got {len(endpoints)}"
+        assert len({var for var, _ in endpoints}) == 2, \
+            f"[SampleGraphBuilder.validate_endpoints] Endpoints can't have same variable, got {endpoints}"
+
+    def build_from_edges(
+            self,
+            edges: frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]],
+            validate_connectivity: bool = True
+    ) -> 'SampleGraph':
+        """
+        Creates sample graph from set of edges.
+        :param edges: frozenset[(endpoints, relation)]
+        :param validate_connectivity: if False then connectivity will not be checked,
+               use it if is_edges_connected was called first
+        :return: built sample graph
+        """
+        if validate_connectivity:
+            assert self.is_edges_connected(edges), \
+                f"[SampleGraphBuilder.build_from_edges] Passed edges are not form connected graph, edges: {edges}"
+
+        for endpoints, relation in edges:
+            self.validate_endpoints(endpoints)
+            nodes = {self._components_provider.get_node(var, val) for var, val in endpoints}
+            edge = self._components_provider.get_edge(frozenset(nodes), relation)
+            self._edges.add(edge)
+            self._nodes.update(nodes)
+
+        return self.build()
+
+    def add_relation(self, endpoints: frozenset[Tuple[Any, Any]], relation: Any) -> 'SampleGraphBuilder':
         """
         To add relation edge in to sample graph, with validation of graph connectivity
         :param endpoints: Exactly 2 nodes which will connected with relation edge
         :param relation: relation type
         :return: self
         """
-        assert len(endpoints) == 2, \
-            f"[SampleGraphBuilder.add_relation] Exactly 2 endpoint should be passed, got {len(endpoints)}"
-        assert len({var for var, _ in endpoints}) == 2, \
-            f"[SampleGraphBuilder.add_relation] Endpoints can't have same variable, got {endpoints}"
-
+        self.validate_endpoints(endpoints)
         nodes = {self._components_provider.get_node(var, val) for var, val in endpoints}
+        edge = self._components_provider.get_edge(frozenset(nodes), relation)
 
         assert not nodes.isdisjoint(self._nodes) or not self._nodes, \
             f"[SampleGraphBuilder.add_relation] One or both endpoint should be previously added node, " \
             f"to keep graph connected, got nodes {nodes} where previously added {self._nodes}"
-
-        edge = self._components_provider.get_edge(frozenset(nodes), relation)
-
         assert edge not in self._edges, \
             f"[SampleGraphBuilder.add_relation] Edge {edge} was added previously"
 
@@ -237,30 +239,14 @@ class SampleGraphBuilder:
         self._nodes.update(nodes)
         return self
 
-    # def connected_nodes(self, start_node: ValueNode, traced: Set[ValueNode] = None) -> Set[ValueNode]:
-    #     if not traced:
-    #         traced = {start_node}
-    #
-    #     neighbors = self._tracing_map[start_node]
-    #
-    #     for neighbor in neighbors:
-    #         if neighbor not in traced:
-    #             traced.add(neighbor)
-    #             traced.update(self.connected_nodes(neighbor, traced))
-    #     return traced
-    #
-    # def is_connected(self) -> bool:
-    #     if len(self._nodes) == 1 and len(self._edges) == 0:
-    #         return True  # Single node graph
-    #     if len(self._nodes) > 0 and self.connected_nodes(list(self._nodes)[0]) == self._nodes:
-    #         return True  # All nodes are connected
-    #     return False
-
     def build(self) -> 'SampleGraph':
         """
         To build composed sample graph
         :return: composed sample graph
         """
+        assert self._nodes, \
+            "[SampleGraphBuilder.build] Sample graph should have at least 1 node"
+
         return SampleGraph(self._components_provider, frozenset(self._nodes), frozenset(self._edges), self._name)
 
 
@@ -299,6 +285,14 @@ class SampleGraph:
         if isinstance(other, SampleGraph):
             return self.hash == other.hash
         return False
+
+    def is_compatible(self, other_components_provider: SampleGraphComponentsProvider) -> bool:
+        """
+        Validate if this sample graph compatible to other components provider
+        :param other_components_provider: other SampleGraphComponentsProvider
+        :return: True if compatible, False otherwise
+        """
+        return id(self._components_provider) == id(other_components_provider)
 
     def text_view(self) -> str:
         """

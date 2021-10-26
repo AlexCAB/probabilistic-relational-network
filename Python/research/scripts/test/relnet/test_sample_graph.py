@@ -272,6 +272,7 @@ class TestSampleGraph(unittest.TestCase):
     e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
     e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
     s_1 = SampleGraph(builder, frozenset({a_1, b_1}), frozenset({e_1}), "s_1")
+    s_2 = SampleGraph(builder, frozenset({a_1}), frozenset({}), "s_2")
 
     def test_init(self):
         self.assertEqual(self.s_1.nodes, frozenset({self.a_1, self.b_1}))
@@ -309,6 +310,14 @@ class TestSampleGraph(unittest.TestCase):
     def test_text_view(self):
         self.assertEqual(SampleGraph(self.builder, frozenset({self.a_1}), frozenset(), None).text_view(), "{(a_1)}")
         self.assertEqual(self.s_1.text_view(),  "{" + os.linesep + "    (a_1)--{r}--(b_1)" + os.linesep + "}")
+
+    def test_edges_set_view(self):
+        self.assertEqual(
+            self.s_1.edges_set_view(),
+            frozenset({(frozenset({("a", "1"), ("b", "1")}), "r")}))
+        self.assertEqual(
+            self.s_2.edges_set_view(),
+            ("a", "1"))
 
     def test_builder(self):
         b_1 = self.s_1.builder()

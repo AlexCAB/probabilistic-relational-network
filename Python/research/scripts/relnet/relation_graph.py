@@ -18,8 +18,6 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-import copy
-from collections import Hashable
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from pyvis.network import Network
@@ -36,18 +34,10 @@ class BuilderComponentsProvider(SampleGraphComponentsProvider):
         assert variables, \
             f"[BuilderComponentsProvider.__init__] Set of variables should not be empty."
         for var, values in variables.items():
-            assert isinstance(var, Hashable), \
-                f"[BuilderComponentsProvider.__init__] Variable '{var}' should be hashable"
             assert values, \
                 f"[BuilderComponentsProvider.__init__] Set of variable values should not be empty, found for {var}"
-            for val in values:
-                assert isinstance(val, Hashable), \
-                    f"[BuilderComponentsProvider.__init__] Value '{val}' of variable '{var}' should be hashable"
         assert relations, \
             f"[BuilderComponentsProvider.__init__] Set of relations should not be empty."
-        for rel in relations:
-            assert isinstance(rel, Hashable), \
-                f"[BuilderComponentsProvider.__init__] Relation '{rel}' should be hashable"
 
         self.variables: Dict[Any, Set[Any]] = variables
         self.relations: Set[Any] = relations
@@ -216,6 +206,7 @@ class RelationGraphBuilder:
             f"[RelationGraphBuilder.build] relation graph should have at least 1 outcome"
 
         return RelationGraph(
+            self._components_provider,
             self._name,
             frozenset({(k, frozenset(v)) for k, v in self._variables.items()}),
             frozenset(self._relations),
@@ -223,9 +214,13 @@ class RelationGraphBuilder:
 
 
 class RelationGraph:
+    """
+    Immutable relation graph instance
+    """
 
     def __init__(
             self,
+            components_provider: SampleGraphComponentsProvider,
             name: Optional[str],
             variables: frozenset[Tuple[Any, frozenset[Any]]],
             relations: frozenset[Any],
@@ -236,14 +231,42 @@ class RelationGraph:
         self.name: str = name if name else f"relation_graph_with_{len(outcomes)}_outcomes"
         self.number_of_outcomes: int = sum([c for _, c in outcomes.items()])
         self._outcomes: Dict[SampleGraph, int] = outcomes
+        self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __repr__(self):
         return self.name
 
     def __copy__(self):
-        return RelationGraph(self.name, self.variables, self.relations, copy.deepcopy(self._outcomes))
+        raise AssertionError(
+            "[RelationGraph.__copy__] Sample graph should not be copied, "
+            "use one of transformation method or builder to get new instance")
+
+    def outcomes(self) -> frozenset[Tuple[SampleGraph, int]]:
+        """
+        Return relation graph outcomes in form of frozenset
+        :return: frozenset[Tuple[SampleGraph, count]]:
+        """
+        return frozenset({( o, c) for o, c in self._outcomes.items()})
+
+    def builder(self) -> RelationGraphBuilder:
+        """
+        Construct new relation graph builder which contains all outcomes from this relation graph
+        :return: new builder instance
+        """
+        return RelationGraphBuilder(
+            {var: set(values) for var, values in self.variables},
+            set(self.relations),
+            self.name,
+            self._outcomes,
+            self._components_provider)
 
     def show_relation_graph(self,  height="1024px", width="1024px") -> None:
+        """
+        Will render this relation graph as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :return: None
+        """
         net = Network(height=height, width=width)
 
         for var, _ in self.variables:
@@ -279,6 +302,12 @@ class RelationGraph:
         net.show(f"{self.name}_relation_graph.html")
 
     def show_all_outcomes(self, height="1024px", width="1024px") -> None:
+        """
+        Will render all outcomes as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :return: None
+        """
         net = Network(height=height, width=width)
 
         for outcome, count in self._outcomes.items():
@@ -291,6 +320,10 @@ class RelationGraph:
         net.show(f"{self.name}_all_outcomes.html")
 
     def describe(self) -> Dict[str, Any]:
+        """
+        Return set of properties of this relation graph
+        :return: Dict[property_name, property_value]
+        """
         return {
             "name": self.name,
             "number_of_variables": len(self.variables),

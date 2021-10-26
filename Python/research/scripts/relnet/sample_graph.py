@@ -21,7 +21,7 @@ created: 2021-10-18
 import os
 from abc import abstractmethod, ABC
 from collections import defaultdict
-from typing import Dict, List, Set, Any, Optional, Tuple
+from typing import Dict, List, Set, Any, Optional, Tuple, Union
 
 from pyvis.network import Network
 
@@ -130,8 +130,6 @@ class SampleGraphBuilder:
         self._name: Optional[str] = name
         self._nodes: Set[ValueNode] = nodes if nodes else set([])
         self._edges: Set[RelationEdge] = edges if edges else set([])
-        # self._tracing_map: Dict[ValueNode, Set[ValueNode]] = {
-        #     n: {e.opposite_endpoint(n) for e in self._edges if e.is_endpoint(n)} for n in self._nodes}
 
     def __copy__(self):
         return SampleGraphBuilder(self._components_provider, self._name, self._nodes, self._edges)
@@ -303,6 +301,19 @@ class SampleGraph:
             return "{" + os.linesep + os.linesep.join(sorted(["    " + str(e) for e in self.edges])) + os.linesep + "}"
         else:
             return "{" + str(list(self.nodes)[0]) + "}"
+
+    def edges_set_view(self) -> Union[frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]], Tuple[Any, Any]]:
+        """
+        Build and return this sample graph in form of simple edges (same format as used in
+        SampleGraphBuilder.build_from_edges). I case graph is single node will return just this node
+        :return: frozenset[Tuple[frozenset[Tuple[variable, value]], relation] or for single node Tuple[variable, value]
+        """
+        if self.edges:
+            return frozenset({
+                (frozenset({(n.variable, n.value) for n in e.endpoints}), e.relation) for e in self.edges})
+        else:
+            single_node = list(self.nodes)[0]
+            return single_node.variable, single_node.value
 
     def show(self, height="1024px", width="1024px") -> None:
         """

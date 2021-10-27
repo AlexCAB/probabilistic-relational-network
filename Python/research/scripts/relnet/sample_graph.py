@@ -18,7 +18,6 @@ website: github.com/alexcab
 created: 2021-10-18
 """
 
-import os
 from abc import abstractmethod, ABC
 from collections import defaultdict
 from typing import Dict, List, Set, Any, Optional, Tuple, Union
@@ -167,6 +166,8 @@ class SampleGraphBuilder:
         traced: Set[(Any, Any)] = set({})
 
         for endpoints in [list(endpoints) for endpoints, _ in edges]:
+            assert len(endpoints) == 2, \
+                f"[SampleGraphBuilder.is_edges_connected] expect endpoints have exactly 2 node, got {endpoints}"
             tracing_map[endpoints[0]].add(endpoints[1])
             tracing_map[endpoints[1]].add(endpoints[0])
 
@@ -216,14 +217,14 @@ class SampleGraphBuilder:
 
         return self.build()
 
-    def add_relation(self, endpoints: frozenset[Tuple[Any, Any]], relation: Any) -> 'SampleGraphBuilder':
+    def add_relation(self, endpoints: Set[Tuple[Any, Any]], relation: Any) -> 'SampleGraphBuilder':
         """
         To add relation edge in to sample graph, with validation of graph connectivity
         :param endpoints: Exactly 2 nodes which will connected with relation edge
         :param relation: relation type
         :return: self
         """
-        self.validate_endpoints(endpoints)
+        self.validate_endpoints(frozenset(endpoints))
         nodes = {self._components_provider.get_node(var, val) for var, val in endpoints}
         edge = self._components_provider.get_edge(frozenset(nodes), relation)
 
@@ -298,7 +299,7 @@ class SampleGraph:
         :return: string representation of this sample
         """
         if self.edges:
-            return "{" + os.linesep + os.linesep.join(sorted(["    " + str(e) for e in self.edges])) + os.linesep + "}"
+            return "{" + "; ".join(sorted([str(e) for e in self.edges])) + "}"
         else:
             return "{" + str(list(self.nodes)[0]) + "}"
 

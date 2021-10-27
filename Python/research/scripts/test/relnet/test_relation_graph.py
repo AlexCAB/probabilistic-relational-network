@@ -19,8 +19,9 @@ created: 2021-10-26
 """
 
 import unittest
+from copy import copy
 
-from scripts.relnet.relation_graph import BuilderComponentsProvider, RelationGraphBuilder
+from scripts.relnet.relation_graph import BuilderComponentsProvider, RelationGraphBuilder, RelationGraph
 from scripts.relnet.sample_graph import ValueNode, SampleGraphBuilder
 
 
@@ -158,10 +159,188 @@ class TestRelationGraphBuilder(unittest.TestCase):
         b_1.build_sample(lambda b: b.build_single_node("a", "2"))
         self.assertEqual(b_1.build().number_of_outcomes, 1)
 
-
     def test_generate_all_possible_outcomes(self):
-        pass
+        builders = [
+            RelationGraphBuilder({"a": {"1"}}, {"r"}),
+            RelationGraphBuilder({"a": {"1"}, "b": {"1"}}, {"r"}),
+            RelationGraphBuilder({"a": {"1"}, "b": {"1"}}, {"r", "s"}),
+            RelationGraphBuilder({"a": {"1"}, "b": {"1"}, "c": {"1"}}, {"r"}),
+            RelationGraphBuilder({"a": {"1"}, "b": {"1"}, "c": {"1"}}, {"r", "s"}),
+            RelationGraphBuilder({"a": {"1", "2"}}, {"r"}),
+            RelationGraphBuilder({"a": {"1", "2"}, "b": {"1", "2"}}, {"r"}),
+            RelationGraphBuilder({"a": {"1", "2"}, "b": {"1", "2"}}, {"r", "s"}),
+            RelationGraphBuilder({"a": {"1", "2"}, "b": {"1"}}, {"r"})]
 
+        generated_graphs = [b.generate_all_possible_outcomes().build().outcomes_as_edges_sets() for b in builders]
+
+        expected_graphs = [
+            frozenset({  # {"a": {"1"}}, {"r"}
+                (("a", "1"), 1)}),
+            frozenset({  # {"a": {"1"}, "b": {"1"}}, {"r"}
+                (("a", "1"), 1),
+                (("b", "1"), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "r")}), 1)}),
+            frozenset({  # {"a": {"1"}, "b": {"1"}}, {"r", "s"}
+                (("a", "1"), 1),
+                (("b", "1"), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "s")}), 1)}),
+            frozenset({  # {"a": {"1"}, "b": {"1"}, "c": {"1"}}, {"r"}
+                (("a", "1"), 1),
+                (("b", "1"), 1),
+                (("c", "1"), 1),
+                (frozenset({(frozenset({("b", "1"), ("a", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("c", "1"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("c", "1"), ("a", "1")}), "r")}), 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("a", "1")}), "r"),
+                    (frozenset({("c", "1"), ("b", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("b", "1")}), "r"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("a", "1")}), "r"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("a", "1")}), "r"),
+                    (frozenset({("c", "1"), ("b", "1")}), "r"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1)}),
+            frozenset({
+                (("a", "1"), 1),
+                (("b", "1"), 1),
+                (("c", "1"), 1),
+                (frozenset({(frozenset({("b", "1"), ("c", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("b", "1"), ("a", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("c", "1"), ("a", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("c", "1"), ("a", "1")}), "s")}), 1),
+                (frozenset({(frozenset({("b", "1"), ("a", "1")}), "s")}), 1),
+                (frozenset({(frozenset({("b", "1"), ("c", "1")}), "s")}), 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "r"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "s")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "r"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "s")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("b", "1"), ("c", "1")}), "r"),
+                    (frozenset({("b", "1"), ("a", "1")}), "s"),
+                    (frozenset({("c", "1"), ("a", "1")}), "r")}),
+                 1),
+                (frozenset({
+                    (frozenset({("c", "1"), ("a", "1")}), "s"),
+                    (frozenset({("b", "1"), ("c", "1")}), "s"),
+                    (frozenset({("b", "1"), ("a", "1")}), "r")}),
+                 1)}),
+            frozenset({  # {"a": {"1", "2"}}, {"r"}
+                (("a", "2"), 1),
+                (("a", "1"), 1)}),
+            frozenset({  # {"a": {"1", "2"}, "b": {"1", "2"}}, {"r"}
+                (("a", "1"), 1),
+                (("a", "2"), 1),
+                (("b", "1"), 1),
+                (("b", "2"), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "2")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("b", "2"), ("a", "2")}), "r")}), 1)}),
+            frozenset({  # {"a": {"1", "2"}, "b": {"1", "2"}}, {"r", "s"}
+                (("a", "1"), 1),
+                (("a", "2"), 1),
+                (("b", "1"), 1),
+                (("b", "2"), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "2")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "2")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "1")}), "s")}), 1),
+                (frozenset({(frozenset({("a", "1"), ("b", "2")}), "s")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "1")}), "s")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "2")}), "s")}), 1)}),
+            frozenset({
+                (("a", "1"), 1),
+                (("a", "2"), 1),
+                (("b", "1"), 1),
+                (frozenset({(frozenset({("b", "1"), ("a", "1")}), "r")}), 1),
+                (frozenset({(frozenset({("a", "2"), ("b", "1")}), "r")}), 1)})]
+
+        for generated, expected in zip(generated_graphs, expected_graphs):
+            self.assertEqual(generated, expected)
 
     def test_build(self):
         b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {self.o_1: 1}, self.bcp)
@@ -173,29 +352,87 @@ class TestRelationGraphBuilder(unittest.TestCase):
 
 class TestRelationGraph(unittest.TestCase):
 
+    bcp = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}}, {"r", "s"})
+    vs = frozenset({(var, frozenset(values)) for var, values in bcp.variables.items()})
+    rs = frozenset(bcp.relations)
+    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    rg_1 = RelationGraph(bcp, "rg_1", vs, rs, {o_1: 1, o_2: 2})
+
     def test_init(self):
-        pass
+        rg_1 = RelationGraph(self.bcp, "rg_1", self.vs, self.rs, {self.o_1: 1,  self.o_2: 2})
+        self.assertEqual(rg_1.variables, self.vs)
+        self.assertEqual(rg_1.relations, self.rs)
+        self.assertEqual(rg_1.name, "rg_1")
+        self.assertEqual(rg_1.number_of_outcomes, 3)
+        self.assertEqual(rg_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2)}))
+
+        rg_2 = RelationGraph(self.bcp, None, self.vs, self.rs, {self.o_1: 1, self.o_2: 2})
+        self.assertEqual(rg_2.name, "relation_graph_with_3_outcomes")
 
     def test_repr(self):
-        pass
+        self.assertEqual(str(self.rg_1), "rg_1")
 
     def test_copy(self):
-        pass
+        with self.assertRaises(AssertionError):
+            copy(self.rg_1)
 
     def test_outcomes(self):
-        pass
+        self.assertEqual(self.rg_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2)}))
+
+    def test_outcomes_as_edges_sets(self):
+        self.assertEqual(self.rg_1.outcomes_as_edges_sets(), frozenset({(("a", "1"), 1), (("a", "2"), 2)}))
 
     def test_builder(self):
-        pass
+        b_1 = self.rg_1.builder()
+        o_3 = SampleGraphBuilder(self.bcp).set_name("o_3").build_single_node("b", "2")
+        b_1.add_outcome(o_3)
+        rg_2 = b_1.build()
+        self.assertEqual(rg_2.outcomes(), frozenset({(self.o_1, 1), (self.o_2, 2), (o_3, 1)}))
 
     def test_describe(self):
-        pass
+        self.assertEqual(
+            self.rg_1.describe(), {
+                "name": "rg_1",
+                "number_of_outcomes": 3,
+                "number_of_relations": 2,
+                "number_of_variables": 3,
+                "relations": {"r", "s"},
+                "variables": {"a", "b", "c"}})
 
     def test_disjoint_distribution(self):
-        pass
+        self.assertEqual(
+            self.rg_1.disjoint_distribution(),
+            {("a", "1"): 0.3333333333333333, ("a", "2"): 0.6666666666666666})
 
     def test_inference(self):
-        pass
+        o_1 = SampleGraphBuilder(self.bcp).set_name("o_1")\
+            .build_single_node("b", "2")
+        o_2 = SampleGraphBuilder(self.bcp).set_name("o_2")\
+            .add_relation({("a", "1"), ("b", "2")}, "r")\
+            .build()
+        o_3 = SampleGraphBuilder(self.bcp).set_name("o_3") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_4 = SampleGraphBuilder(self.bcp).set_name("o_4") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+
+        rg_1 = RelationGraph(self.bcp, "rg_1", self.vs, self.rs, {o_1: 1, o_2: 2, o_3: 3, o_4: 4})
+
+        q_1 = SampleGraphBuilder(self.bcp).set_name("q_1") \
+            .build_single_node("b", "2")
+        q_2 = SampleGraphBuilder(self.bcp).set_name("q_2") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .build()
+        q_3 = SampleGraphBuilder(self.bcp).set_name("q_3") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+
+        self.assertEqual(rg_1.inference(q_1).outcomes(), frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4)}))
+        self.assertEqual(rg_1.inference(q_2).outcomes(), frozenset({(o_2, 2), (o_4, 4)}))
+        self.assertEqual(rg_1.inference(q_3).outcomes(), frozenset({(o_3, 3), (o_4, 4)}))
 
 
 if __name__ == '__main__':

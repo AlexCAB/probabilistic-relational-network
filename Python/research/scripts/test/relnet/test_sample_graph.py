@@ -18,7 +18,6 @@ website: github.com/alexcab
 created: 2021-10-18
 """
 
-import os
 import unittest
 from copy import copy
 from typing import Any, Dict, Set, Tuple
@@ -222,8 +221,8 @@ class TestSampleGraphBuilder(unittest.TestCase):
 
     def test_add_relation(self):
         b_1 = SampleGraphBuilder(self.builder) \
-            .add_relation(frozenset({("a", "1"), ("b", "1")}), "r") \
-            .add_relation(frozenset({("b", "1"), ("c", "1")}), "r")
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
+            .add_relation({("b", "1"), ("c", "1")}, "r")
         s_1 = b_1.build()
 
         self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
@@ -231,30 +230,30 @@ class TestSampleGraphBuilder(unittest.TestCase):
         self.assertEqual(s_1.edges, frozenset({self.e_1, self.e_2}))
         self.assertEqual({id(e) for e in s_1.edges}, {id(e) for e in {self.e_1, self.e_2}})
 
-        b_1.add_relation(frozenset({("c", "1"), ("d", "1")}), "s")
+        b_1.add_relation({("c", "1"), ("d", "1")}, "s")
         s_2 = b_1.build()
 
         self.assertTrue(("d", "1") in [(n.variable, n.value) for n in s_2.nodes])
         self.assertTrue("s" in [e.relation for e in s_2.edges])
 
         with self.assertRaises(AssertionError):  # len(endpoints) != 2
-            b_1.add_relation(frozenset({("c", "1")}), "r")
+            b_1.add_relation({("c", "1")}, "r")
 
         with self.assertRaises(AssertionError):  # len(endpoints) != 2
-            b_1.add_relation(frozenset({("a", "1"), ("b", "1"), ("c", "1")}), "r")
+            b_1.add_relation({("a", "1"), ("b", "1"), ("c", "1")}, "r")
 
         with self.assertRaises(AssertionError):  # len({var for var, _ in endpoints}) != 2
-            b_1.add_relation(frozenset({("a", "1"), ("a", "2")}), "r")
+            b_1.add_relation({("a", "1"), ("a", "2")}, "r")
 
         with self.assertRaises(AssertionError):  # nodes.isdisjoint(self._nodes)
             SampleGraphBuilder(self.builder) \
-                .add_relation(frozenset({("a", "1"), ("b", "1")}), "r") \
-                .add_relation(frozenset({("c", "1"), ("d", "1")}), "r")
+                .add_relation({("a", "1"), ("b", "1")}, "r") \
+                .add_relation({("c", "1"), ("d", "1")}, "r")
 
         with self.assertRaises(AssertionError):  # edge in self._edges
             SampleGraphBuilder(self.builder) \
-                .add_relation(frozenset({("a", "1"), ("b", "1")}), "r") \
-                .add_relation(frozenset({("a", "1"), ("b", "1")}), "r")
+                .add_relation({("a", "1"), ("b", "1")}, "r") \
+                .add_relation({("a", "1"), ("b", "1")}, "r")
 
     def test_build(self):
         with self.assertRaises(AssertionError):
@@ -309,7 +308,7 @@ class TestSampleGraph(unittest.TestCase):
 
     def test_text_view(self):
         self.assertEqual(SampleGraph(self.builder, frozenset({self.a_1}), frozenset(), None).text_view(), "{(a_1)}")
-        self.assertEqual(self.s_1.text_view(),  "{" + os.linesep + "    (a_1)--{r}--(b_1)" + os.linesep + "}")
+        self.assertEqual(self.s_1.text_view(),  "{(a_1)--{r}--(b_1)}")
 
     def test_edges_set_view(self):
         self.assertEqual(
@@ -321,7 +320,7 @@ class TestSampleGraph(unittest.TestCase):
 
     def test_builder(self):
         b_1 = self.s_1.builder()
-        b_1.add_relation(frozenset({("b", "1"), ("f", "1")}), "g")
+        b_1.add_relation({("b", "1"), ("f", "1")}, "g")
         s_2 = b_1.build()
         self.assertTrue(("f", "1") in {(n.variable, n.value) for n in s_2.nodes})
         self.assertTrue("g" in [e.relation for e in s_2.edges])
@@ -370,9 +369,9 @@ class TestSampleGraph(unittest.TestCase):
 
     def test_neighboring_values(self):
         s = SampleGraphBuilder(self.builder)\
-            .add_relation(frozenset({("a", "1"), ("b", "1")}), "r")\
-            .add_relation(frozenset({("a", "1"), ("c", "1")}), "g")\
-            .add_relation(frozenset({("a", "1"), ("d", "1")}), "b")\
+            .add_relation({("a", "1"), ("b", "1")}, "r")\
+            .add_relation({("a", "1"), ("c", "1")}, "g")\
+            .add_relation({("a", "1"), ("d", "1")}, "b")\
             .build()
 
         gn = self.builder.get_node
@@ -395,12 +394,12 @@ class TestSampleGraph(unittest.TestCase):
 
     def test_similarity(self):
         s_1 = SampleGraphBuilder(self.builder) \
-            .add_relation(frozenset({("a", "1"), ("b", "1")}), "r") \
-            .add_relation(frozenset({("a", "1"), ("c", "1")}), "r") \
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
+            .add_relation({("a", "1"), ("c", "1")}, "r") \
             .build()
 
         s_2 = SampleGraphBuilder(self.builder) \
-            .add_relation(frozenset({("a", "1"), ("b", "1")}), "r") \
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
             .build()
 
         s_3 = SampleGraphBuilder(self.builder) \

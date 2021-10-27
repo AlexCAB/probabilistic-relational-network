@@ -18,9 +18,11 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-from typing import List, Dict, Set, Any, Tuple, Optional, Callable
+from typing import List, Dict, Set, Any, Tuple, Optional, Callable, Union
 
 from pyvis.network import Network
+
+from .inference_graph import InferenceGraph
 from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider
 
 
@@ -155,11 +157,16 @@ class RelationGraphBuilder:
             f"[RelationGraphBuilder.generate_all_possible_outcomes] Builder should not have outcomes added, " \
             f"found {len(self._outcomes)}"
 
-        indexed_variables = [(var, list(values)) for var, values in self._variables]
+        indexed_variables = [(var, list(values)) for var, values in self._variables.items()]
         indexed_relations = list(self._relations)
 
-        all_nodes: List[(Any, Any)] = [(var, values[0]) for var, values in indexed_variables]
-        all_endpoints: List[Set[(Any, Any)]] = [{n_1, n_2} for n_2 in all_nodes for n_1 in all_nodes]
+        all_nodes: List[(Any, Any)] = [
+            (var, values[0])
+            for var, values in indexed_variables]
+
+        all_endpoints: List[frozenset[(Any, Any)]] = list({
+            frozenset({n_1, n_2})
+            for n_2 in all_nodes for n_1 in all_nodes if n_1 != n_2})
 
         index_acc: List[int] = [-1 for _ in range(0,  len(all_endpoints))]
         edges_indices: List[List[int]] = []
@@ -189,12 +196,14 @@ class RelationGraphBuilder:
         for var, values in indexed_variables:
             self.add_outcomes([
                 outcome.transform_with_replaced_values({var: val}, f"O_{self.next_id()}")
-                for val in values[1:]   # Iterate over all value except first
-                for outcome in self._outcomes])
+                for outcome in self._outcomes
+                for val in values[1:]  # Iterate over all value except first
+                if outcome.contains_variable(var)])
 
-        for outcome, count in self._outcomes:
+        for outcome, count in self._outcomes.items():
             assert count == 1, \
-                f"[RelationGraphBuilder.generate_all_possible_outcomes] Outcome {outcome} added {count} times"
+                f"[RelationGraphBuilder.generate_all_possible_outcomes] Outcome {outcome.text_view()} " \
+                f"added {count} times"
         return self
 
     def build(self) -> 'RelationGraph':
@@ -228,8 +237,8 @@ class RelationGraph:
     ):
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = variables
         self.relations: frozenset[Any] = relations
-        self.name: str = name if name else f"relation_graph_with_{len(outcomes)}_outcomes"
-        self.number_of_outcomes: int = sum([c for _, c in outcomes.items()])
+        self.number_of_outcomes: int = sum(outcomes.values())
+        self.name: str = name if name else f"relation_graph_with_{self.number_of_outcomes}_outcomes"
         self._outcomes: Dict[SampleGraph, int] = outcomes
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
@@ -246,7 +255,16 @@ class RelationGraph:
         Return relation graph outcomes in form of frozenset
         :return: frozenset[Tuple[SampleGraph, count]]:
         """
-        return frozenset({( o, c) for o, c in self._outcomes.items()})
+        return frozenset({(o, c) for o, c in self._outcomes.items()})
+
+    def outcomes_as_edges_sets(
+            self
+    ) -> frozenset[Tuple[Union[frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]], Tuple[Any, Any]]], int]:
+        """
+        Return relation graph outcomes as set of edges_sets
+        :return: frozenset[frozenset[(frozenset[(variable, value)], value)] or (variable, value), count]:
+        """
+        return frozenset({(o.edges_set_view(), c) for o, c in self._outcomes.items()})
 
     def builder(self) -> RelationGraphBuilder:
         """
@@ -257,10 +275,10 @@ class RelationGraph:
             {var: set(values) for var, values in self.variables},
             set(self.relations),
             self.name,
-            self._outcomes,
+            {outcome: count for outcome, count in self._outcomes.items()},
             self._components_provider)
 
-    def show_relation_graph(self,  height="1024px", width="1024px") -> None:
+    def visualize_relation_graph(self,  height="1024px", width="1024px") -> None:
         """
         Will render this relation graph as HTML page and show in browser
         :param height: window height
@@ -301,7 +319,7 @@ class RelationGraph:
 
         net.show(f"{self.name}_relation_graph.html")
 
-    def show_all_outcomes(self, height="1024px", width="1024px") -> None:
+    def visualize_outcomes(self, height="1024px", width="1024px") -> None:
         """
         Will render all outcomes as HTML page and show in browser
         :param height: window height
@@ -329,8 +347,8 @@ class RelationGraph:
             "number_of_variables": len(self.variables),
             "number_of_relations": len(self.relations),
             "number_of_outcomes": self.number_of_outcomes,
-            "variables": [str(v) for v, _ in self.variables],
-            "relations": [str(r) for r in self.relations],
+            "variables": {str(v) for v, _ in self.variables},
+            "relations": {str(r) for r in self.relations},
         }
 
     def disjoint_distribution(self) -> Dict[Tuple[str, str], float]:
@@ -351,31 +369,31 @@ class RelationGraph:
 
         return {(k.variable, k.value): v / total for k, v in acc.items()}
 
-    # TODO:
-    # def inference(self, query: SampleGraph) -> InferenceGraph:
-    #     query_errors = query.validate()
-    #
-    #     assert not query_errors, f"[RelationGraph.inference] query {query} is invalid, query_errors: {query_errors}"
-    #
-    #     query_hash = query.get_hash()
-    #     selected_outcomes = [o for o in self._outcomes if query_hash.issubset(o.get_hash())]
-    #     cloned_variables = {}
-    #
-    #     for o in selected_outcomes:
-    #         for v in o.get_all_values():
-    #             if v.variable_id not in cloned_variables:
-    #                 cloned_variables[v.variable_id] = self._variables[v.variable_id].clean_copy()
-    #
-    #     cloned_outcomes = [
-    #         o.clone(o.sample_id, relations=list(self._relations.values()), variables=list(cloned_variables.values()))
-    #         for o in selected_outcomes]
-    #
-    #     for outcome in cloned_outcomes:
-    #         for value in outcome.get_all_values():
-    #             cloned_variables[value.variable_id].add_value(outcome.sample_id, value)
-    #
-    #     self._log.debug(
-    #         f"[RelationGraph.inference] len(cloned_outcomes) = {len(cloned_outcomes)}, "
-    #         f"len(cloned_variables) = {len(cloned_variables)}")
-    #
-    #     return InferenceGraph(query, list(cloned_variables.values()), cloned_outcomes)
+    def inference(self, query: SampleGraph) -> InferenceGraph:
+        """
+        Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
+        and pack in InferenceGraph instance.
+        :param query: and SampleGraph to filter on
+        :return: new instance of InferenceGraph
+        """
+        assert query.is_compatible(self._components_provider), \
+            f"[RelationGraphBuilder.add_outcome] Query {query} is not compatible with this relation graph, " \
+            f"since it vas created with using another SampleGraphComponentsProvider"
+
+        selected_outcomes: Dict[SampleGraph, int] = {
+            outcome: count for outcome, count in self._outcomes.items() if query.is_subgraph(outcome)}
+
+        variables: Dict[Any, Set[Any]] = {}
+        for outcome in selected_outcomes.keys():
+            for node in outcome.nodes:
+                if node.variable in variables:
+                    variables[node.variable].add(node.value)
+                else:
+                    variables[node.variable] = {node.value}
+
+        return InferenceGraph(
+            self._components_provider,
+            query,
+            frozenset({(var, frozenset(values)) for var, values in variables.items()}),
+            self.name,
+            selected_outcomes)

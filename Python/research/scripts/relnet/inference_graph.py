@@ -18,162 +18,210 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-import logging
 from typing import List, Dict, Any, Tuple
-
 from pyvis.network import Network
-from .active_value import ActiveValue, ActiveRelation
-from .relation_edge import RelationEdge
-from .relation_type import RelationType
-from .value_node import ValueNode
-from .variable_node import VariableNode
-
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .sample_graph import SampleGraph
+from scripts.relnet.sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphComponentsProvider
 
 
 class ActiveRelation:
+    """
+    Immutable data class which represent active relation
+    """
 
-    def __init__(self, linked_value_id: str, linked_variable_id: str, relation_type_id: str, count: int):
-        self.linked_value_id = linked_value_id
-        self.linked_variable_id = linked_variable_id
-        self.relation_type_id = relation_type_id
+    def __init__(self, linked_variable: Any, linked_value: Any, relation: Any, count: int):
+        self.linked_variable = linked_variable
+        self.linked_value = linked_value
+        self.relation = relation
         self.count = count
 
     def __repr__(self):
         return f"ActiveRelation(" \
-               f"linked_value_id = {self.linked_value_id}, " \
-               f"linked_variable_id = {self.linked_variable_id}, " \
-               f"relation_type_id = {self.relation_type_id}, " \
+               f"linked_variable = {self.linked_variable}, " \
+               f"linked_value = {self.linked_value}, " \
+               f"relation = {self.relation}, " \
                f"count = {self.count})"
 
 
 class ActiveValue:
+    """
+    Immutable data class which represent active value
+    """
 
-    def __init__(self, value_id: str, variable_id: str, weight: float, active_relations: List[ActiveRelation]):
-        self.value_id = value_id
-        self.variable_id = variable_id
+    def __init__(self, variable: Any, value: Any, weight: float, active_relations: List[ActiveRelation]):
+        self.variable = variable
+        self.value = value
         self.weight = weight
         self.active_relations = active_relations
 
     def __repr__(self):
         return f"ActiveValue(" \
-               f"value_id = {self.value_id}, " \
-               f"variable_id = {self.variable_id}, " \
+               f"variable = {self.variable}, " \
+               f"value = {self.value}, " \
                f"weight = {self.weight}, " \
                f"active_relations = {self.active_relations})"
 
 
 class InferenceGraph:
+    """
+    Immutable wrapper of list of selected outcomes
+    """
 
-    def __init__(self, query: 'SampleGraph', variables: List[VariableNode], outcomes: List['SampleGraph']):
-        self._query = query
-        self._variables = variables
-        self._outcomes = outcomes
-        self._log = logging.getLogger('relationnetlib')
+    def __init__(
+            self,
+            components_provider: SampleGraphComponentsProvider,
+            query: SampleGraph,
+            variables: frozenset[Tuple[Any, frozenset[Any]]],
+            relation_graph_name: str,
+            outcomes: Dict[SampleGraph, int]):
+        self.query: SampleGraph = query
+        self.number_of_outcomes: int = sum([c for _, c in outcomes.items()])
+        self._variables: frozenset[Tuple[Any, frozenset[Any]]] = variables
+        self._relation_graph_name: str = relation_graph_name
+        self._outcomes: Dict[SampleGraph, int] = outcomes
+        self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __repr__(self):
-        return f"InferenceGraph(len(outcomes) = {len( self._outcomes)}, " \
-               f"variable ids = {[v.variable_id for v in self._variables]})"
+        return f"inference_of_{self._relation_graph_name}"
 
-    def show_outcomes(self, height="1024px", width="1024px") -> None:
+    def outcomes(self) -> frozenset[Tuple[SampleGraph, int]]:
+        """
+        Return inference graph outcomes in form of frozenset
+        :return: frozenset[Tuple[SampleGraph, count]]:
+        """
+        return frozenset({(o, c) for o, c in self._outcomes.items()})
+
+    def visualize_inference_graph(self,  height="1024px", width="1024px") -> None:
+        """
+        Will render this inference graph as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :return: None
+        """
+        pass
+
+    def visualize_outcomes(self, height="1024px", width="1024px") -> None:
+        """
+        Will render all outcomes as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :return: None
+        """
         net = Network(height=height, width=width)
 
-        for outcome in self._outcomes:
-            for v in outcome.get_all_values():
-                net.add_node(
-                    f"{outcome.sample_id}@{v.value_id}",
-                    label=f"{outcome.sample_id}@{v.variable_id}({v.value_id})")
+        for outcome, count in self._outcomes.items():
+            for node in outcome.nodes:
+                net.add_node(node.string_id, label=f"{node.string_id}@{outcome.name}({count})")
+            for edge in outcome.edges:
+                ep = list(edge.endpoints)
+                net.add_edge(ep[0].string_id, ep[1].string_id, label=str(edge.relation))
 
-            for e in outcome.all_edges():
-                net.add_edge(
-                    f"{outcome.sample_id}@{e.node_a.value_id}",
-                    f"{outcome.sample_id}@{e.node_b.value_id}",
-                    label=e.relation_type.relation_type_id
-                )
+        net.show(f"{str(self)}.html")
 
-        net.show(f"Inference_on_{self._query.sample_id}_query.html")
-
-        self._log.debug(f"[InferenceGraph.show_outcomes] len(outcome) = {len(self._outcomes)}")
+    def visualize_activation(self, height="1024px", width="1024px") -> None:
+        """
+        Will calculate active values and render inference graph with it as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :return: None
+        """
+        pass
 
     def describe(self) -> Dict[str, Any]:
+        """
+        Return set of properties of this inference graph
+        :return: Dict[property_name, property_value]
+        """
         return {
-            "query": self._query,
+            "query": self.query.text_view(),
             "number_variables": len(self._variables),
-            "number_outcomes": len(self._outcomes),
-            "variable_ids": [v.variable_id for v in self._variables],
+            "number_outcomes": self.number_of_outcomes,
+            "variables": {str(v) for v, _ in self._variables},
         }
 
-    def get_active_values(
-            self, relation_filter: List[RelationType] = None,
-            limit: int = 100
-    ) -> List[ActiveValue]:
+    def active_values(self, relation_filter: List[Any] = None) -> List[ActiveValue]:
         """
         On given inference graph calculate list of active nodes.
         :param relation_filter: list of relation for which activation will be calculated,
                                 if None then for all relations.
-        :param limit: max number of active values to be returned
         :return List[ActiveValue]: list of calculated active values, sorted on weight:
         """
 
-        in_query_values = {v.get_id(): v for v in self._query.get_all_values()}
-        relation_filter_ids = [r.relation_type_id for r in relation_filter] if relation_filter else None
-        found_values_per_outcome: Dict[str, Tuple[float, Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]]]] = {}
+        found_values_per_outcome: Dict[(SampleGraph, int), Tuple[float, Dict[ValueNode, List[RelationEdge]]]] = {}
 
-        self._log.debug(
-            f"[InferenceGraph.get_active_values] in_query_values = {in_query_values}, "
-            f"relation_filter_ids = {relation_filter_ids}, limit = {limit}")
-
-        for outcome in self._outcomes:
-            checked_value_ids = set(in_query_values.keys())
-            found_values: Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]] = {}
-            similarity = outcome.get_similarity(self._query)
+        for outcome, count in self._outcomes.items():
+            checked_values = set(self.query.nodes)
+            found_values: Dict[ValueNode, List[RelationEdge]] = {}
+            similarity = outcome.similarity(self.query)
 
             while True:
-                one_step_value: Dict[Tuple[str, str], Tuple[ValueNode, RelationEdge]] = {}
+                one_step_values: Dict[ValueNode, List[RelationEdge]] = {}
+                for value_node in outcome.nodes:
+                    if value_node in checked_values:
+                        neighboring_nodes = outcome.neighboring_values(value_node, relation_filter)
+                        for neighboring_node, relation_edge in neighboring_nodes.items():
+                            if neighboring_node not in checked_values:
+                                if neighboring_node in one_step_values:
+                                    one_step_values[neighboring_node].append(relation_edge)
+                                else:
+                                    one_step_values[neighboring_node] = [relation_edge]
 
-                for outcome_val in outcome.get_all_values():
-                    if outcome_val.get_id() in checked_value_ids:
-                        neighboring_values = outcome.get_neighboring_values(
-                            outcome_val.variable_id, outcome_val.value_id, relation_filter_ids)
-                        for nv, rel in neighboring_values:
-                            if nv.get_id() not in checked_value_ids and nv.get_id() not in one_step_value:
-                                one_step_value[nv.get_id()] = (nv, rel)
-
-                if one_step_value:
-                    checked_value_ids.update(one_step_value.keys())
-                    found_values.update(one_step_value)
-                    one_step_value.clear()
+                if one_step_values:
+                    checked_values.update(one_step_values.keys())
+                    for val_node, rel_edges in one_step_values.items():
+                        if val_node in found_values:
+                            found_values[val_node].extend(rel_edges)
+                        else:
+                            found_values[val_node] = rel_edges
+                    checked_values.clear()
                 else:
                     break
 
-            self._log.debug(
-                f"[InferenceGraph.get_active_values] sample_id = {outcome.sample_id}, "
-                f"similarity = {similarity}, found_values = {found_values}")
-            found_values_per_outcome[outcome.sample_id] = (similarity, found_values)
+            found_values_per_outcome[(outcome, count)] = (similarity, found_values)
 
-        grouped_values: Dict[Tuple[str, str], Tuple[float, Dict[Tuple[str, str, str], int]]] = {}
+        grouped_values: Dict[ValueNode, Tuple[float, Dict[RelationEdge, int]]] = {}
 
-        for outcome_id, (similarity, found_values) in found_values_per_outcome.items():
-            for val_id, (val, rel) in found_values.items():
-                other_val = rel.end_node_for_start(val)
-                rel_id = (other_val.variable_id, other_val.value_id, rel.relation_type.relation_type_id)
-                if val_id in grouped_values:
-                    sim_count, rel_acc = grouped_values[val_id]
-                    if rel_id in rel_acc:
-                        rel_acc[rel_id] += 1
+        for (outcome, count), (similarity, found_values) in found_values_per_outcome.items():
+            for value_node, rel_edges in found_values.items():
+
+                relation_acc: Dict[RelationEdge, int] = {}
+                for edge in rel_edges:
+                    if edge in relation_acc:
+                        relation_acc[edge] += 1
                     else:
-                        rel_acc[rel_id] = 1
-                    grouped_values[val_id] = (sim_count + similarity, rel_acc)
+                        relation_acc[edge] = 1
+
+                relation_with_count: Dict[RelationEdge, int] = {re: num * count for re, num in relation_acc.items()}
+
+                if value_node in grouped_values:
+
+                    weight, relation_edges = grouped_values[value_node]
+                    weight += (similarity * count)
+
+                    for rel, c in relation_with_count.items():
+                        if rel in relation_edges:
+                            relation_edges[rel] += c
+                        else:
+                            relation_edges[rel] = c
+
+                    grouped_values[value_node] = (weight, relation_edges)
+
                 else:
-                    grouped_values[val_id] = (similarity, {rel_id: 1})
+                    grouped_values[value_node] = (similarity * count, relation_with_count)
 
         active_values: List[ActiveValue] = []
 
-        for (variable_id, value_id), (weight, rel_count) in grouped_values.items():
-            active_relations = [ActiveRelation(linked_val_id, linked_var_id, rel_type_id, count)
-                                for (linked_val_id, linked_var_id, rel_type_id), count in rel_count.items()]
-            active_values.append(ActiveValue(variable_id, value_id, weight, active_relations))
+        for value_node, (weight, relation_edges) in grouped_values.items():
+
+            active_relations: List[ActiveRelation] = []
+            for rel_edge, c in relation_edges.items():
+                opp_value = rel_edge.opposite_endpoint(value_node)
+
+                assert opp_value, \
+                    f"[InferenceGraph.active_values] Expect to find opposite value for node {value_node} " \
+                    f"in edge {rel_edge}, look like bug"
+
+                active_relations.append(ActiveRelation(opp_value.variable, opp_value.value, rel_edge.relation, c))
+
+            active_values.append(ActiveValue(value_node.variable, value_node.value, weight, active_relations))
 
         return sorted(active_values, key=lambda x: x.weight, reverse=True)

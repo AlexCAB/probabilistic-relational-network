@@ -20,7 +20,7 @@ created: 2021-10-18
 
 from abc import abstractmethod, ABC
 from collections import defaultdict
-from typing import Dict, List, Set, Any, Optional, Tuple, Union
+from typing import Dict, Set, Any, Optional, Tuple, Union
 
 from pyvis.network import Network
 
@@ -89,7 +89,7 @@ class RelationEdge:
         """
         return node in self.endpoints
 
-    def opposite_endpoint(self, node: ValueNode) -> Optional[ValueNode]:
+    def opposite_endpoint(self, node: ValueNode) -> ValueNode:
         """
         Will return node from opposite endpoint against given node.
         :param node: one of endpoint nodes
@@ -99,18 +99,29 @@ class RelationEdge:
             return self.b
         if self.b == node:
             return self.a
-        return None
+        raise AssertionError(f"[ValueNode.opposite_endpoint] Value node {node} is not one of endpoints")
 
 
 class SampleGraphComponentsProvider(ABC):
+    """
+    Interface if sample graph components provider which construct nodes and edges
+    """
+
+    @abstractmethod
+    def variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def relations(self) -> frozenset[Any]:
+        raise NotImplementedError
 
     @abstractmethod
     def get_node(self, variable: Any, value: Any) -> ValueNode:
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_edge(self, endpoints: frozenset[ValueNode], relation: Any) -> RelationEdge:
-        pass
+        raise NotImplementedError
 
 
 class SampleGraphBuilder:
@@ -131,7 +142,7 @@ class SampleGraphBuilder:
         self._edges: Set[RelationEdge] = edges if edges else set([])
 
     def __copy__(self):
-        return SampleGraphBuilder(self._components_provider, self._name, self._nodes, self._edges)
+        return SampleGraphBuilder(self._components_provider, self._name, set(self._nodes), set(self._edges))
 
     def set_name(self, name: Optional[str]):
         """
@@ -277,7 +288,7 @@ class SampleGraph:
 
     def __copy__(self):
         raise AssertionError(
-            "[RelationEdge.__copy__] Sample graph should not be copied, "
+            "[SampleGraph.__copy__] Sample graph should not be copied, "
             "use one of transformation method to get new instance")
 
     def __eq__(self, other: Any):
@@ -403,13 +414,13 @@ class SampleGraph:
     def neighboring_values(
             self,
             center: ValueNode,
-            relation_filter: List[Any] = None
+            relation_filter: Set[Any] = None
     ) -> Dict[ValueNode, RelationEdge]:
         """
         Search the neighbors of given  center node, which linked with one of relation
         from relation_filter list.
         :param center: center node
-        :param relation_filter: list of relations to select neighbors with particular relation,
+        :param relation_filter: Set of relations to select neighbors with particular relation,
                                 if None then select all neighbors.
         :return: List[neighbor_node, relation_edge_with_which_this_node_connected_to_center_node]
         """
@@ -426,3 +437,57 @@ class SampleGraph:
         intersect_hash = self.hash.intersection(other.hash)
         differ_hash = self.hash.symmetric_difference(other.hash)
         return len(intersect_hash) / (len(intersect_hash) + len(differ_hash))
+
+    def belt_nodes(
+            self,
+            center_nodes: Set[ValueNode],
+            relation_filter: Set[Any] = None
+    ) -> Dict[ValueNode, Set[RelationEdge]]:
+        """
+        Find all neighbors nodes at one step deep from center_nodes
+        :param center_nodes: nodes to search neighbors around, should not be empty
+        :param relation_filter: Set of relations to select neighbors with particular relation,
+                                if None then select all neighbors.
+        :return: Dict[one_step_deep_neighbor_node, Set[relation_edge_with_which_this_node_connected_to_center_nodes]]
+        """
+        assert center_nodes, "[SampleGraph.belt_nodes] center_nodes set should not be empty"
+
+        acc:  Dict[ValueNode, Set[RelationEdge]] = {}
+        for edge in self.edges:
+            if not relation_filter or edge.relation in relation_filter:
+                ep_dif = edge.endpoints.difference(center_nodes)
+                if len(ep_dif) == 1:
+                    node = next(iter(ep_dif))
+                    if node in acc:
+                        assert edge not in acc[node], \
+                            "[SampleGraph.belt_nodes] sample graph can't have 2 identical edges, look like bug"
+                        acc[node].add(edge)
+                    else:
+                        acc[node] = {edge}
+        return acc
+
+    def external_nodes(
+            self,
+            internal_nodes: Set[ValueNode],
+            relation_filter: Set[Any] = None
+    ) -> Dict[ValueNode, Set[RelationEdge]]:
+        """
+        Return all external nodes (nodes which not in internal nodes set) of this sample graph
+        :param internal_nodes: nodes to search neighbors around, should not be empty
+        :param relation_filter: Set of relations to select neighbors with particular relation,
+                                if None then select all neighbors.
+        :return: Dict[external_node, Set[relation_edge_which_lead_to_internal_node]]
+        """
+        acc_nodes = self.belt_nodes(internal_nodes, relation_filter)
+        if acc_nodes:
+            for node, edges in self.external_nodes(internal_nodes.union(acc_nodes.keys()), relation_filter).items():
+                if node in acc_nodes:
+                    assert acc_nodes[node].isdisjoint(edges), \
+                        "[SampleGraph.external_nodes] sample graph can't have identical edges " \
+                        "and they can't be checked twice, look like bug."
+                    acc_nodes[node].update(edges)
+                else:
+                    acc_nodes[node] = edges
+            return acc_nodes
+        else:
+            return {}  # All value nodes checked

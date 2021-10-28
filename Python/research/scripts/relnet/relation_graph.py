@@ -41,15 +41,21 @@ class BuilderComponentsProvider(SampleGraphComponentsProvider):
         assert relations, \
             f"[BuilderComponentsProvider.__init__] Set of relations should not be empty."
 
-        self.variables: Dict[Any, Set[Any]] = variables
-        self.relations: Set[Any] = relations
+        self._variables: Dict[Any, Set[Any]] = variables
+        self._relations: Set[Any] = relations
         self.nodes: Dict[Tuple[Any, Any], ValueNode] = {}
         self.edges: Dict[Tuple[frozenset[ValueNode], Any], RelationEdge] = {}
 
+    def variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
+        return frozenset({(k, frozenset(v)) for k, v in self._variables.items()})
+
+    def relations(self) -> frozenset[Any]:
+        return frozenset(self._relations)
+
     def get_node(self, variable: Any, value: Any) -> ValueNode:
-        assert variable in self.variables, \
+        assert variable in self._variables, \
             f"[BuilderComponentsProvider.get_node] Unknown variable {variable}"
-        assert value in self.variables[variable], \
+        assert value in self._variables[variable], \
             f"[BuilderComponentsProvider.get_node] Unknown value {value} of variable {variable}"
 
         if (variable, value) in self.nodes:
@@ -63,7 +69,7 @@ class BuilderComponentsProvider(SampleGraphComponentsProvider):
         assert endpoints.issubset(self.nodes.values()), \
             f"[BuilderComponentsProvider.get_edge] Endpoints nodes should be created first, " \
             f"got {endpoints} where nodes {self.nodes}"
-        assert relation in self.relations, \
+        assert relation in self._relations, \
             f"[BuilderComponentsProvider.get_node] Unknown relation {relation}"
 
         if (endpoints, relation) in self.edges:
@@ -81,19 +87,32 @@ class RelationGraphBuilder:
 
     def __init__(
             self,
-            variables: Dict[Any, Set[Any]],
-            relations: Set[Any],
+            variables:  Optional[Dict[Any, Set[Any]]] = None,
+            relations:  Optional[Set[Any]] = None,
             name: Optional[str] = None,
             outcomes: Dict[SampleGraph, int] = None,
             components_provider: Optional[SampleGraphComponentsProvider] = None,
     ):
-        self._variables: Dict[Any, Set[Any]] = variables
-        self._relations: Set[Any] = relations
+        assert (variables and relations) or components_provider, \
+            "[RelationGraphBuilder.__init__] (variables and relations) or components_provider should be passed"
+
+        self._components_provider = components_provider if components_provider \
+            else BuilderComponentsProvider(variables, relations)
         self._name: Optional[str] = name
         self._outcomes: Dict[SampleGraph, int] = outcomes if outcomes else {}
         self._id_counter = 0
-        self._components_provider = components_provider if components_provider \
-            else BuilderComponentsProvider(variables, relations)
+
+        self.variables: frozenset[Tuple[Any, frozenset[Any]]] = self._components_provider.variables()
+        self.relations: frozenset[Any] = self._components_provider.relations()
+
+    def set_name(self, name: Optional[str]):
+        """
+        Update relation graphs name with given
+        :param name: new name
+        :return: self
+        """
+        self._name = name
+        return self
 
     def next_id(self) -> int:
         """
@@ -155,10 +174,10 @@ class RelationGraphBuilder:
         """
         assert not self._outcomes, \
             f"[RelationGraphBuilder.generate_all_possible_outcomes] Builder should not have outcomes added, " \
-            f"found {len(self._outcomes)}"
+            f"found {len(self._outcomes)} outcomes"
 
-        indexed_variables = [(var, list(values)) for var, values in self._variables.items()]
-        indexed_relations = list(self._relations)
+        indexed_variables = [(var, list(values)) for var, values in self.variables]
+        indexed_relations = list(self.relations)
 
         all_nodes: List[(Any, Any)] = [
             (var, values[0])
@@ -217,8 +236,6 @@ class RelationGraphBuilder:
         return RelationGraph(
             self._components_provider,
             self._name,
-            frozenset({(k, frozenset(v)) for k, v in self._variables.items()}),
-            frozenset(self._relations),
             self._outcomes)
 
 
@@ -231,12 +248,10 @@ class RelationGraph:
             self,
             components_provider: SampleGraphComponentsProvider,
             name: Optional[str],
-            variables: frozenset[Tuple[Any, frozenset[Any]]],
-            relations: frozenset[Any],
             outcomes: Dict[SampleGraph, int]
     ):
-        self.variables: frozenset[Tuple[Any, frozenset[Any]]] = variables
-        self.relations: frozenset[Any] = relations
+        self.variables: frozenset[Tuple[Any, frozenset[Any]]] = components_provider.variables()
+        self.relations: frozenset[Any] = components_provider.relations()
         self.number_of_outcomes: int = sum(outcomes.values())
         self.name: str = name if name else f"relation_graph_with_{self.number_of_outcomes}_outcomes"
         self._outcomes: Dict[SampleGraph, int] = outcomes
@@ -383,17 +398,8 @@ class RelationGraph:
         selected_outcomes: Dict[SampleGraph, int] = {
             outcome: count for outcome, count in self._outcomes.items() if query.is_subgraph(outcome)}
 
-        variables: Dict[Any, Set[Any]] = {}
-        for outcome in selected_outcomes.keys():
-            for node in outcome.nodes:
-                if node.variable in variables:
-                    variables[node.variable].add(node.value)
-                else:
-                    variables[node.variable] = {node.value}
-
         return InferenceGraph(
             self._components_provider,
             query,
-            frozenset({(var, frozenset(values)) for var, values in variables.items()}),
             self.name,
             selected_outcomes)

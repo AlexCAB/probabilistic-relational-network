@@ -29,15 +29,22 @@ from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphBuil
 class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
 
     def __init__(self, variables: Dict[Any, Set[Any]], relations: Set[Any]):
-        self.variables: Dict[Any, Set[Any]] = variables
-        self.relations: Set[Any] = relations
+        self._variables: Dict[Any, Set[Any]] = variables
+        self._relations: Set[Any] = relations
+
         self.nodes: Dict[Tuple[Any, Any], ValueNode] = {}
         self.edges: Dict[Tuple[frozenset[ValueNode], Any], RelationEdge] = {}
 
+    def variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
+        return frozenset({(k, frozenset(v)) for k, v in self._variables.items()})
+
+    def relations(self) -> frozenset[Any]:
+        return frozenset(self._relations)
+
     def get_node(self, variable: Any, value: Any) -> ValueNode:
-        assert variable in self.variables, \
+        assert variable in self._variables, \
             f"[MockSampleGraphComponentsProvider.get_node] Unknown variable {variable}"
-        assert value in self.variables[variable], \
+        assert value in self._variables[variable], \
             f"[MockSampleGraphComponentsProvider.get_node] Unknown value {value} of variable {variable}"
 
         if (variable, value) in self.nodes:
@@ -51,7 +58,7 @@ class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
         assert endpoints.issubset(self.nodes.values()), \
             f"[MockSampleGraphComponentsProvider.get_edge] Endpoints nodes should be created first, " \
             f"got {endpoints} where nodes {self.nodes}"
-        assert relation in self.relations, \
+        assert relation in self._relations, \
             f"[MockSampleGraphComponentsProvider.get_node] Unknown relation {relation}"
 
         if (endpoints, relation) in self.edges:
@@ -125,7 +132,8 @@ class TestRelationEdge(unittest.TestCase):
     def test_opposite_endpoint(self):
         self.assertEqual(self.e_1.opposite_endpoint(self.a_1), self.b_1)
         self.assertEqual(self.e_1.opposite_endpoint(self.b_1), self.a_1)
-        self.assertEqual(self.e_1.opposite_endpoint(self.b_2), None)
+        with self.assertRaises(AssertionError):
+            self.e_1.opposite_endpoint(self.b_2)
 
 
 class TestSampleGraphBuilder(unittest.TestCase):
@@ -388,7 +396,7 @@ class TestSampleGraph(unittest.TestCase):
                 gn("a", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r")})
 
         self.assertEqual(
-            s.neighboring_values(self.builder.get_node("a", "1"), ["r", "g"]), {
+            s.neighboring_values(self.builder.get_node("a", "1"), {"r", "g"}), {
                 gn("b", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r"),
                 gn("c", "1"): ge(frozenset({gn("a", "1"), gn("c", "1")}), "g")})
 
@@ -411,6 +419,48 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(s_2.similarity(s_3), 0.3333333333333333)
         self.assertEqual(s_3.similarity(s_1), 0.2)
         self.assertEqual(s_3.similarity(s_2), 0.3333333333333333)
+
+    def test_belt_nodes(self):
+        s_1 = SampleGraphBuilder(self.builder) \
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
+            .add_relation({("a", "1"), ("b", "1")}, "g") \
+            .add_relation({("a", "1"), ("c", "1")}, "g") \
+            .build()
+
+        gn = self.builder.get_node
+        ge = self.builder.get_edge
+        n_a1, n_b1, n_c1 = gn("a", "1"), gn("b", "1"), gn("c", "1")
+        e_abr = ge(frozenset({n_a1, n_b1}), "r")
+        e_abg = ge(frozenset({n_a1, n_b1}), "g")
+        e_acg = ge(frozenset({n_a1, n_c1}), "g")
+
+        self.assertEqual(s_1.belt_nodes({n_a1}), {n_b1: {e_abr, e_abg}, n_c1: {e_acg}})
+        self.assertEqual(s_1.belt_nodes({n_b1, n_c1}), {n_a1: {e_abr, e_abg, e_acg}})
+        self.assertEqual(s_1.belt_nodes({n_a1, n_b1, n_c1}), {})
+        self.assertEqual(s_1.belt_nodes({n_a1}, {"r"}), {n_b1: {e_abr}})
+
+        with self.assertRaises(AssertionError):
+            s_1.belt_nodes(set({}))
+
+    def test_external_nodes(self):
+        s_1 = SampleGraphBuilder(self.builder) \
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
+            .add_relation({("b", "1"), ("c", "1")}, "r") \
+            .add_relation({("c", "1"), ("d", "1")}, "g") \
+            .add_relation({("d", "1"), ("f", "1")}, "g") \
+            .build()
+
+        gn = self.builder.get_node
+        ge = self.builder.get_edge
+        n_a1, n_b1, n_c1, n_d1, n_f1 = gn("a", "1"), gn("b", "1"), gn("c", "1"), gn("d", "1"), gn("f", "1")
+        e_abr = ge(frozenset({n_a1, n_b1}), "r")
+        e_bcr = ge(frozenset({n_b1, n_c1}), "r")
+        e_cdg = ge(frozenset({n_c1, n_d1}), "g")
+        e_dfg = ge(frozenset({n_d1, n_f1}), "g")
+
+        self.assertEqual(s_1.external_nodes({n_a1}), {n_b1: {e_abr}, n_c1: {e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
+        self.assertEqual(s_1.external_nodes({n_a1, n_c1}), {n_b1: {e_abr, e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
+        self.assertEqual(s_1.external_nodes({n_a1}, {"r"}), {n_b1: {e_abr}, n_c1: {e_bcr}})
 
 
 if __name__ == '__main__':

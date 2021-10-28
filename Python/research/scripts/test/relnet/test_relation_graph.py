@@ -32,7 +32,8 @@ class TestBuilderComponentsProvider(unittest.TestCase):
     def test_init(self):
         b = BuilderComponentsProvider({"a": {"1", "2"}}, {"r"})
 
-        self.assertEqual(b.variables, {"a": {"1", "2"}})
+        self.assertEqual(b.variables(), frozenset({("a", frozenset({"1", "2"}))}))
+        self.assertEqual(b.relations(), frozenset({"r"}))
         self.assertEqual(b.nodes, {})
         self.assertEqual(b.edges, {})
 
@@ -42,6 +43,14 @@ class TestBuilderComponentsProvider(unittest.TestCase):
             BuilderComponentsProvider({"a": set({})}, {"r"})
         with self.assertRaises(AssertionError):  # Empty set of relations
             BuilderComponentsProvider({"a": {"1", "2"}}, set({}))
+
+    def test_variables(self):
+        self.assertEqual(
+            self.b_1.variables(),
+            frozenset({("a", frozenset({"1", "2"})), ("b", frozenset({"2", "3"}))}))
+
+    def test_relations(self):
+        self.assertEqual(self.b_1.relations(), frozenset({"r", "s"}))
 
     def test_get_node(self):
         n_1 = self.b_1.get_node("a", "1")
@@ -96,17 +105,15 @@ class TestBuilderComponentsProvider(unittest.TestCase):
 class TestRelationGraphBuilder(unittest.TestCase):
 
     bcp = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}}, {"r", "s"})
-    b_1 = RelationGraphBuilder(bcp.variables, bcp.relations, "b_1", {}, bcp)
+    b_1 = RelationGraphBuilder(None, None, "b_1", {}, bcp)
     o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
 
     def test_init(self):
-        b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {self.o_1: 1}, self.bcp)
+        b_1 = RelationGraphBuilder(None, None, "b_1", {self.o_1: 1}, self.bcp)
         g_1 = b_1.build()
-        self.assertEqual(
-            g_1.variables,
-            frozenset({(var, frozenset(values)) for var, values in self.bcp.variables.items()}))
-        self.assertEqual(g_1.relations, frozenset(self.bcp.relations))
+        self.assertEqual(g_1.variables, self.bcp.variables())
+        self.assertEqual(g_1.relations, self.bcp.relations())
         self.assertEqual(g_1.name, "b_1")
         self.assertEqual(g_1.number_of_outcomes, 1)
 
@@ -118,6 +125,10 @@ class TestRelationGraphBuilder(unittest.TestCase):
         self.assertEqual(g_2.name, "relation_graph_with_1_outcomes")
         self.assertEqual(g_2.number_of_outcomes, 1)
 
+    def test_set_name(self):
+        b_1 = RelationGraphBuilder(None, None, "b_1", {self.o_1: 1}, self.bcp).set_name("rg_123").build()
+        self.assertEqual(b_1.name, "rg_123")
+
     def test_next_id(self):
         b_1 = RelationGraphBuilder({"a": {"1"}}, {"r"})
         self.assertEqual(b_1.next_id(), 1)
@@ -125,7 +136,7 @@ class TestRelationGraphBuilder(unittest.TestCase):
         self.assertEqual(b_1.next_id(), 3)
 
     def test_add_outcome(self):
-        b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {}, self.bcp)
+        b_1 = RelationGraphBuilder(None, None, "b_1", {}, self.bcp)
 
         b_1.add_outcome(self.o_1)
         self.assertEqual(b_1.build().outcomes(), frozenset({(self.o_1, 1)}))
@@ -137,7 +148,7 @@ class TestRelationGraphBuilder(unittest.TestCase):
         self.assertEqual(b_1.build().outcomes(), frozenset({(self.o_1, 2), (self.o_2, 1)}))
 
         with self.assertRaises(AssertionError):  # Not compatible with this relation graph
-            b_2 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations)
+            b_2 = RelationGraphBuilder({k: set(v) for k, v in self.bcp.variables()}, set(self.bcp.relations()))
             o_2 = b_2.sample_builder().build_single_node("a", "1")
             b_1.add_outcome(o_2)
 
@@ -145,7 +156,7 @@ class TestRelationGraphBuilder(unittest.TestCase):
             b_1.add_outcome(self.o_1, 0)
 
     def test_add_outcomes(self):
-        b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {}, self.bcp)
+        b_1 = RelationGraphBuilder(None, None, "b_1", {}, self.bcp)
         b_1.add_outcomes([self.o_1, self.o_1, self.o_1])
         self.assertEqual(b_1.build().outcomes(), frozenset({(self.o_1, 3)}))
 
@@ -155,7 +166,7 @@ class TestRelationGraphBuilder(unittest.TestCase):
         self.assertEqual(s_1.edges_set_view(), ("a", "2"))
 
     def test_build_sample(self):
-        b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {}, self.bcp)
+        b_1 = RelationGraphBuilder(None, None, "b_1", {}, self.bcp)
         b_1.build_sample(lambda b: b.build_single_node("a", "2"))
         self.assertEqual(b_1.build().number_of_outcomes, 1)
 
@@ -343,31 +354,29 @@ class TestRelationGraphBuilder(unittest.TestCase):
             self.assertEqual(generated, expected)
 
     def test_build(self):
-        b_1 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {self.o_1: 1}, self.bcp)
+        b_1 = RelationGraphBuilder(None, None, "b_1", {self.o_1: 1}, self.bcp)
         self.assertEqual(b_1.build().outcomes(), frozenset({(self.o_1, 1)}))
         with self.assertRaises(AssertionError):  # Expect count be >= 1
-            b_2 = RelationGraphBuilder(self.bcp.variables, self.bcp.relations, "b_1", {}, self.bcp)
+            b_2 = RelationGraphBuilder(None, None, "b_1", {}, self.bcp)
             b_2.build()
 
 
 class TestRelationGraph(unittest.TestCase):
 
     bcp = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}}, {"r", "s"})
-    vs = frozenset({(var, frozenset(values)) for var, values in bcp.variables.items()})
-    rs = frozenset(bcp.relations)
     o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
-    rg_1 = RelationGraph(bcp, "rg_1", vs, rs, {o_1: 1, o_2: 2})
+    rg_1 = RelationGraph(bcp, "rg_1", {o_1: 1, o_2: 2})
 
     def test_init(self):
-        rg_1 = RelationGraph(self.bcp, "rg_1", self.vs, self.rs, {self.o_1: 1,  self.o_2: 2})
-        self.assertEqual(rg_1.variables, self.vs)
-        self.assertEqual(rg_1.relations, self.rs)
+        rg_1 = RelationGraph(self.bcp, "rg_1", {self.o_1: 1,  self.o_2: 2})
+        self.assertEqual(rg_1.variables, self.bcp.variables())
+        self.assertEqual(rg_1.relations, self.bcp.relations())
         self.assertEqual(rg_1.name, "rg_1")
         self.assertEqual(rg_1.number_of_outcomes, 3)
         self.assertEqual(rg_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2)}))
 
-        rg_2 = RelationGraph(self.bcp, None, self.vs, self.rs, {self.o_1: 1, self.o_2: 2})
+        rg_2 = RelationGraph(self.bcp, None, {self.o_1: 1, self.o_2: 2})
         self.assertEqual(rg_2.name, "relation_graph_with_3_outcomes")
 
     def test_repr(self):
@@ -417,9 +426,13 @@ class TestRelationGraph(unittest.TestCase):
         o_4 = SampleGraphBuilder(self.bcp).set_name("o_4") \
             .add_relation({("a", "1"), ("b", "2")}, "r") \
             .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .add_relation({("c", "3"), ("a", "2")}, "s") \
+            .build()
+        o_5 = SampleGraphBuilder(self.bcp).set_name("o_5") \
+            .add_relation({("c", "3"), ("a", "1")}, "s") \
             .build()
 
-        rg_1 = RelationGraph(self.bcp, "rg_1", self.vs, self.rs, {o_1: 1, o_2: 2, o_3: 3, o_4: 4})
+        rg_1 = RelationGraph(self.bcp, "rg_1", {o_1: 1, o_2: 2, o_3: 3, o_4: 4, o_5: 5})
 
         q_1 = SampleGraphBuilder(self.bcp).set_name("q_1") \
             .build_single_node("b", "2")
@@ -429,10 +442,25 @@ class TestRelationGraph(unittest.TestCase):
         q_3 = SampleGraphBuilder(self.bcp).set_name("q_3") \
             .add_relation({("b", "2"), ("c", "3")}, "r") \
             .build()
+        q_4 = SampleGraphBuilder(self.bcp).set_name("q_4") \
+            .add_relation({("c", "3"), ("a", "1")}, "s") \
+            .build()
 
-        self.assertEqual(rg_1.inference(q_1).outcomes(), frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4)}))
-        self.assertEqual(rg_1.inference(q_2).outcomes(), frozenset({(o_2, 2), (o_4, 4)}))
-        self.assertEqual(rg_1.inference(q_3).outcomes(), frozenset({(o_3, 3), (o_4, 4)}))
+        self.assertEqual(
+            rg_1.inference(q_1).outcomes(),
+            frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4)}))
+
+        self.assertEqual(
+            rg_1.inference(q_2).outcomes(),
+            frozenset({(o_2, 2), (o_4, 4)}))
+
+        self.assertEqual(
+            rg_1.inference(q_3).outcomes(),
+            frozenset({(o_3, 3), (o_4, 4)}))
+
+        self.assertEqual(
+            rg_1.inference(q_4).outcomes(),
+            frozenset({(o_5, 5)}))
 
 
 if __name__ == '__main__':

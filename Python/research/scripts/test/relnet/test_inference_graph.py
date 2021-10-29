@@ -19,7 +19,6 @@ created: 2021-10-28
 """
 
 import unittest
-from copy import copy
 
 from scripts.relnet.inference_graph import InferenceGraph, ActiveValue, ActiveRelation
 from scripts.relnet.relation_graph import BuilderComponentsProvider
@@ -69,22 +68,7 @@ class TestInferenceGraph(unittest.TestCase):
         self.assertEqual(self.ig_1.number_of_outcomes, 3)
 
     def test_repr(self):
-        self.assertEqual(str(self.ig_1), "inference_of_ig_1")
-
-    def test_copy(self):
-        with self.assertRaises(AssertionError):
-            copy(self.ig_1)
-
-    def test_included_variables(self):
-        self.assertEqual(
-            self.ig_1.included_variables(),
-            frozenset({("a", frozenset({"1"})), ("b", frozenset({"2"}))}))
-
-    def test_included_relations(self):
-        self.assertEqual(self.ig_1.included_relations(), frozenset({"r"}))
-
-    def test_outcomes(self):
-        self.assertEqual(self.ig_1.outcomes(), frozenset({(self.s_1, 1), (self.s_2, 2)}))
+        self.assertEqual(str(self.ig_1), "ig_1")
 
     def test_builder(self):
         rg_1 = self.ig_1.builder().set_name("rg_1").build()

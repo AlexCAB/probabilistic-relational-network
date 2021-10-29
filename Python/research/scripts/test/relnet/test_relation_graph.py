@@ -382,16 +382,6 @@ class TestRelationGraph(unittest.TestCase):
     def test_repr(self):
         self.assertEqual(str(self.rg_1), "rg_1")
 
-    def test_copy(self):
-        with self.assertRaises(AssertionError):
-            copy(self.rg_1)
-
-    def test_outcomes(self):
-        self.assertEqual(self.rg_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2)}))
-
-    def test_outcomes_as_edges_sets(self):
-        self.assertEqual(self.rg_1.outcomes_as_edges_sets(), frozenset({(("a", "1"), 1), (("a", "2"), 2)}))
-
     def test_builder(self):
         b_1 = self.rg_1.builder()
         o_3 = SampleGraphBuilder(self.bcp).set_name("o_3").build_single_node("b", "2")
@@ -408,11 +398,6 @@ class TestRelationGraph(unittest.TestCase):
                 "number_of_variables": 3,
                 "relations": {"r", "s"},
                 "variables": {"a", "b", "c"}})
-
-    def test_disjoint_distribution(self):
-        self.assertEqual(
-            self.rg_1.disjoint_distribution(),
-            {("a", "1"): 0.3333333333333333, ("a", "2"): 0.6666666666666666})
 
     def test_inference(self):
         o_1 = SampleGraphBuilder(self.bcp).set_name("o_1")\
@@ -446,8 +431,12 @@ class TestRelationGraph(unittest.TestCase):
             .add_relation({("c", "3"), ("a", "1")}, "s") \
             .build()
 
+        ig_1 = rg_1.inference(q_1, "ig_1")
+
+        self.assertEqual(ig_1.name, "ig_1")
+
         self.assertEqual(
-            rg_1.inference(q_1).outcomes(),
+            ig_1.outcomes(),
             frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4)}))
 
         self.assertEqual(

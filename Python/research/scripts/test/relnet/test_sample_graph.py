@@ -23,7 +23,8 @@ from copy import copy
 from typing import Any, Dict, Set, Tuple
 
 from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphBuilder, SampleGraph, \
-    SampleGraphComponentsProvider
+    SampleGraphComponentsProvider, SampleSpace
+from scripts.relnet.variables_graph import VariableNode, VariableEdge
 
 
 class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
@@ -260,7 +261,7 @@ class TestSampleGraphBuilder(unittest.TestCase):
 
         with self.assertRaises(AssertionError):  # edge in self._edges
             SampleGraphBuilder(self.builder) \
-                .add_relation({("a", "1"), ("b", "1")}, "r") \
+                .add_relation({("a", "1"), ("b", "1")}, "s") \
                 .add_relation({("a", "1"), ("b", "1")}, "r")
 
     def test_build(self):
@@ -423,21 +424,29 @@ class TestSampleGraph(unittest.TestCase):
     def test_belt_nodes(self):
         s_1 = SampleGraphBuilder(self.builder) \
             .add_relation({("a", "1"), ("b", "1")}, "r") \
-            .add_relation({("a", "1"), ("b", "1")}, "g") \
+            .add_relation({("a", "1"), ("b", "7")}, "g") \
             .add_relation({("a", "1"), ("c", "1")}, "g") \
             .build()
 
         gn = self.builder.get_node
         ge = self.builder.get_edge
-        n_a1, n_b1, n_c1 = gn("a", "1"), gn("b", "1"), gn("c", "1")
+        n_a1, n_b1, n_b7, n_c1 = gn("a", "1"), gn("b", "1"), gn("b", "7"), gn("c", "1")
         e_abr = ge(frozenset({n_a1, n_b1}), "r")
-        e_abg = ge(frozenset({n_a1, n_b1}), "g")
+        e_abg = ge(frozenset({n_a1, n_b7}), "g")
         e_acg = ge(frozenset({n_a1, n_c1}), "g")
 
-        self.assertEqual(s_1.belt_nodes({n_a1}), {n_b1: {e_abr, e_abg}, n_c1: {e_acg}})
-        self.assertEqual(s_1.belt_nodes({n_b1, n_c1}), {n_a1: {e_abr, e_abg, e_acg}})
-        self.assertEqual(s_1.belt_nodes({n_a1, n_b1, n_c1}), {})
-        self.assertEqual(s_1.belt_nodes({n_a1}, {"r"}), {n_b1: {e_abr}})
+        self.assertEqual(
+            s_1.belt_nodes({n_a1}),
+            {n_b1: {e_abr}, n_b7: {e_abg}, n_c1: {e_acg}})
+        self.assertEqual(
+            s_1.belt_nodes({n_b1, n_c1}),
+            {n_a1: {e_abr, e_acg}})
+        self.assertEqual(
+            s_1.belt_nodes({n_a1, n_b1, n_b7, n_c1}),
+            {})
+        self.assertEqual(
+            s_1.belt_nodes({n_a1}, {"r"}),
+            {n_b1: {e_abr}})
 
         with self.assertRaises(AssertionError):
             s_1.belt_nodes(set({}))
@@ -461,6 +470,66 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(s_1.external_nodes({n_a1}), {n_b1: {e_abr}, n_c1: {e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
         self.assertEqual(s_1.external_nodes({n_a1, n_c1}), {n_b1: {e_abr, e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
         self.assertEqual(s_1.external_nodes({n_a1}, {"r"}), {n_b1: {e_abr}, n_c1: {e_bcr}})
+
+
+class TestSampleSpace(unittest.TestCase):
+
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}}, {"r", "s"})
+    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    o_3 = SampleGraphBuilder(bcp) \
+        .add_relation({("a", "1"), ("b", "2")}, "r") \
+        .build()
+    ss_1 = SampleSpace(bcp, {o_1: 1, o_2: 2, o_3: 3})
+
+    def test_init(self):
+        self.assertEqual(self.ss_1.number_of_outcomes, 6)
+
+    def test_copy(self):
+        with self.assertRaises(AssertionError):
+            copy(self.ss_1)
+
+    def test_outcomes(self):
+        self.assertEqual(self.ss_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2), (self.o_3, 3)}))
+
+    def test_outcomes_as_edges_sets(self):
+        self.assertEqual(self.ss_1.outcomes_as_edges_sets(), frozenset({
+            (frozenset({(frozenset({("a", "1"), ("b", "2")}), "r")}), 3),
+            (("a", "1"), 1),
+            (("a", "2"), 2)}))
+
+    def test_disjoint_distribution(self):
+        self.assertEqual(
+            self.ss_1.disjoint_distribution(),
+            {("a", "1"): 0.4444444444444444,
+             ("a", "2"): 0.2222222222222222,
+             ("b", "2"): 0.3333333333333333})
+
+    def test_included_variables(self):
+        self.assertEqual(
+            self.ss_1.included_variables(),
+            frozenset({("a", frozenset({"1", "2"})), ("b", frozenset({"2"}))}))
+
+    def test_included_relations(self):
+        self.assertEqual(self.ss_1.included_relations(), frozenset({"r"}))
+
+    def test_variables_graph(self):
+        vg_1 = self.ss_1.variables_graph("vg_1")
+        gn = self.bcp.get_node
+        ge = self.bcp.get_edge
+
+        self.assertEqual(
+            vg_1.name,
+            "vg_1")
+
+        self.assertEqual(
+            vg_1.nodes, frozenset({
+                VariableNode("b", {gn("b", "2"): 3}),
+                VariableNode("a", {gn("a", "1"): 4, gn("a", "2"): 2})}))
+
+        self.assertEqual(
+            vg_1.edges, frozenset({
+                VariableEdge(frozenset({"a", "b"}), {ge(frozenset({gn("a", "1"), gn("b", "2")}), "r"): 3})}))
 
 
 if __name__ == '__main__':

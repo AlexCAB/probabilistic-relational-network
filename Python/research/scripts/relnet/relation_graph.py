@@ -18,12 +18,13 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-from typing import List, Dict, Set, Any, Tuple, Optional, Callable, Union
+from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from pyvis.network import Network
 
 from .inference_graph import InferenceGraph
-from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider
+from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider, \
+    SampleSpace
 
 
 class BuilderComponentsProvider(SampleGraphComponentsProvider):
@@ -239,7 +240,7 @@ class RelationGraphBuilder:
             self._outcomes)
 
 
-class RelationGraph:
+class RelationGraph(SampleSpace):
     """
     Immutable relation graph instance
     """
@@ -250,36 +251,13 @@ class RelationGraph:
             name: Optional[str],
             outcomes: Dict[SampleGraph, int]
     ):
+        super().__init__(components_provider, outcomes)
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = components_provider.variables()
         self.relations: frozenset[Any] = components_provider.relations()
-        self.number_of_outcomes: int = sum(outcomes.values())
         self.name: str = name if name else f"relation_graph_with_{self.number_of_outcomes}_outcomes"
-        self._outcomes: Dict[SampleGraph, int] = outcomes
-        self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __repr__(self):
         return self.name
-
-    def __copy__(self):
-        raise AssertionError(
-            "[RelationGraph.__copy__] Sample graph should not be copied, "
-            "use one of transformation method or builder to get new instance")
-
-    def outcomes(self) -> frozenset[Tuple[SampleGraph, int]]:
-        """
-        Return relation graph outcomes in form of frozenset
-        :return: frozenset[Tuple[SampleGraph, count]]:
-        """
-        return frozenset({(o, c) for o, c in self._outcomes.items()})
-
-    def outcomes_as_edges_sets(
-            self
-    ) -> frozenset[Tuple[Union[frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]], Tuple[Any, Any]]], int]:
-        """
-        Return relation graph outcomes as set of edges_sets
-        :return: frozenset[frozenset[(frozenset[(variable, value)], value)] or (variable, value), count]:
-        """
-        return frozenset({(o.edges_set_view(), c) for o, c in self._outcomes.items()})
 
     def builder(self) -> RelationGraphBuilder:
         """
@@ -293,64 +271,25 @@ class RelationGraph:
             {outcome: count for outcome, count in self._outcomes.items()},
             self._components_provider)
 
-    def visualize_relation_graph(self,  height="1024px", width="1024px") -> None:
+    def visualize(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will render this relation graph as HTML page and show in browser
+        :param name: optional name of this visualization, if None then self.name will passed
         :param height: window height
         :param width: window width
         :return: None
         """
-        net = Network(height=height, width=width)
+        self._visualize_variables_graph(name if name else self.name, height, width)
 
-        for var, _ in self.variables:
-            net.add_node(var, label=var)
-
-        sample_edges: Dict[frozenset[Any], Set[Any]] = {}
-        for sample in self._outcomes.keys():
-            for edge in sample.edges:
-                endpoints = frozenset({ep.variable for ep in edge.endpoints})
-                if endpoints in sample_edges:
-                    sample_edges[endpoints].add(str(edge.relation))
-                else:
-                    sample_edges[endpoints] = set(str(edge.relation))
-
-        for endpoints, relations in sample_edges.items():
-            ep = list(endpoints)
-            net.add_edge(ep[0], ep[1], label=' | '.join(relations))
-
-        net.set_options('''
-          {
-            "physics": {
-              "forceAtlas2Based": {
-                "gravitationalConstant": -200,
-                "centralGravity": 0.03,
-                "springLength": 200,
-                "springConstant": 0.09
-              },
-              "solver": "forceAtlas2Based"
-            }
-          }
-        ''')
-
-        net.show(f"{self.name}_relation_graph.html")
-
-    def visualize_outcomes(self, height="1024px", width="1024px") -> None:
+    def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will render all outcomes as HTML page and show in browser
         :param height: window height
         :param width: window width
+        :param name: optional name of this visualization, if None then self.name will passed
         :return: None
         """
-        net = Network(height=height, width=width)
-
-        for outcome, count in self._outcomes.items():
-            for node in outcome.nodes:
-                net.add_node(node.string_id, label=f"{node.string_id}@{outcome.name}({count})")
-            for edge in outcome.edges:
-                ep = list(edge.endpoints)
-                net.add_edge(ep[0].string_id, ep[1].string_id, label=str(edge.relation))
-
-        net.show(f"{self.name}_all_outcomes.html")
+        self._visualize_outcomes(name if name else self.name, height, width, None)
 
     def describe(self) -> Dict[str, Any]:
         """
@@ -366,29 +305,12 @@ class RelationGraph:
             "relations": {str(r) for r in self.relations},
         }
 
-    def disjoint_distribution(self) -> Dict[Tuple[str, str], float]:
-        """
-        Calculate probability of appear for each value of each variable, as if they are independent events.
-        :return: Dict[(variable, value), probability_of_appear]
-        """
-        acc: Dict[ValueNode, int] = {}
-
-        for outcome, count in self._outcomes.items():
-            for node in outcome.nodes:
-                if node in acc:
-                    acc[node] += count
-                else:
-                    acc[node] = count
-
-        total = sum(acc.values())
-
-        return {(k.variable, k.value): v / total for k, v in acc.items()}
-
-    def inference(self, query: SampleGraph) -> InferenceGraph:
+    def inference(self, query: SampleGraph, name: Optional[str] = None) -> InferenceGraph:
         """
         Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
         and pack in InferenceGraph instance.
         :param query: and SampleGraph to filter on
+        :param name: optional name for the inference graph
         :return: new instance of InferenceGraph
         """
         assert query.is_compatible(self._components_provider), \
@@ -401,5 +323,5 @@ class RelationGraph:
         return InferenceGraph(
             self._components_provider,
             query,
-            self.name,
+            name if name else f"inference_of_{self.name}",
             selected_outcomes)

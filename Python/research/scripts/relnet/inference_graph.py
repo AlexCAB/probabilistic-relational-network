@@ -18,9 +18,9 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 from dataclasses import dataclass
-from typing import List, Dict, Any, Tuple, Set
-from pyvis.network import Network
-from scripts.relnet.sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphComponentsProvider
+from typing import List, Dict, Any, Tuple, Set, Optional
+from scripts.relnet.sample_graph import \
+    SampleGraph, ValueNode, RelationEdge, SampleGraphComponentsProvider, SampleSpace
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class ActiveValue:
     active_relations: frozenset[ActiveRelation]
 
 
-class InferenceGraph:
+class InferenceGraph(SampleSpace):
     """
     Immutable wrapper of list of selected outcomes
     """
@@ -60,49 +60,17 @@ class InferenceGraph:
             self,
             components_provider: SampleGraphComponentsProvider,
             query: SampleGraph,
-            relation_graph_name: str,
+            name: str,
             outcomes: Dict[SampleGraph, int]
     ):
+        super().__init__(components_provider, outcomes)
         self.query: SampleGraph = query
-        self.number_of_outcomes: int = sum([c for _, c in outcomes.items()])
-        self._relation_graph_name: str = relation_graph_name
+        self.name: str = name
         self._outcomes: Dict[SampleGraph, int] = outcomes
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __repr__(self):
-        return f"inference_of_{self._relation_graph_name}"
-
-    def __copy__(self):
-        raise AssertionError(
-            "[InferenceGraph.__copy__] Inference graph should not be copied, "
-            "use one of transformation method or builder to get new instance")
-
-    def included_variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
-        """
-        Calculate variables and values that appear in this inference graph
-        :return: frozenset[(variable, frozenset[value])]:
-        """
-        variables: Dict[Any, Set[Any]] = {}
-
-        for outcome in self._outcomes.keys():
-            for node in outcome.nodes:
-                variables[node.variable] = variables.get(node.variable, set({})).union({node.value})
-
-        return frozenset({(var, frozenset(values)) for var, values in variables.items()})
-
-    def included_relations(self) -> frozenset[Any]:
-        """
-        Calculate relations that appear in this inference graph
-        :return: frozenset[relation]
-        """
-        return frozenset({e.relation for o in self._outcomes.keys()for e in o.edges})
-
-    def outcomes(self) -> frozenset[Tuple[SampleGraph, int]]:
-        """
-        Return inference graph outcomes in form of frozenset
-        :return: frozenset[Tuple[SampleGraph, count]]:
-        """
-        return frozenset({(o, c) for o, c in self._outcomes.items()})
+        return self.name
 
     def builder(self) -> 'RelationGraphBuilder':
         """
@@ -117,34 +85,27 @@ class InferenceGraph:
             {outcome: count for outcome, count in self._outcomes.items()},
             self._components_provider)
 
-    def visualize_inference_graph(self,  height="1024px", width="1024px") -> None:
+    def visualize(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will render this inference graph as HTML page and show in browser
+        :param name: optional name of this visualization, if None then self.name will passed
         :param height: window height
         :param width: window width
         :return: None
         """
-        pass
+        self._visualize_variables_graph(name if name else self.name, height, width)
 
-    def visualize_outcomes(self, height="1024px", width="1024px") -> None:
+    def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will render all outcomes as HTML page and show in browser
         :param height: window height
         :param width: window width
+        :param name: optional name of this visualization, if None then self.name will passed
         :return: None
         """
-        net = Network(height=height, width=width)
+        self._visualize_outcomes(name if name else self.name, height, width, self.query)
 
-        for outcome, count in self._outcomes.items():
-            for node in outcome.nodes:
-                net.add_node(node.string_id, label=f"{node.string_id}@{outcome.name}({count})")
-            for edge in outcome.edges:
-                ep = list(edge.endpoints)
-                net.add_edge(ep[0].string_id, ep[1].string_id, label=str(edge.relation))
-
-        net.show(f"{str(self)}.html")
-
-    def visualize_activation(self, height="1024px", width="1024px") -> None:
+    def visualize_activation(self, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will calculate active values and render inference graph with it as HTML page and show in browser
         :param height: window height

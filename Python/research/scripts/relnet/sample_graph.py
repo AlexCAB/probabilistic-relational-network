@@ -24,7 +24,7 @@ from typing import Dict, Set, Any, Optional, Tuple, Union
 
 from pyvis.network import Network
 
-from scripts.relnet.variables_graph import VariablesGraph, VariableNode, VariableEdge
+from scripts.relnet.folded_graph import FoldedGraph, FoldedNode, FoldedEdge
 
 
 class ValueNode:
@@ -574,7 +574,7 @@ class SampleSpace:
         """
         return frozenset({e.relation for o in self._outcomes.keys()for e in o.edges})
 
-    def variables_graph(self, name: Optional[str] = None) -> VariablesGraph:
+    def folded_graph(self, name: Optional[str] = None) -> FoldedGraph:
         """
         Build folded variables graph representation from this set of outcomes
         :return: variables graph
@@ -595,9 +595,11 @@ class SampleSpace:
                 else:
                     edge_acc[endpoints] = {edge: count}
 
-        return VariablesGraph(
-            {VariableNode(variable, nodes) for variable, nodes in node_acc.items()},
-            {VariableEdge(endpoints, edges) for endpoints, edges in edge_acc.items()},
+        return FoldedGraph(
+            self._components_provider,
+            self.number_of_outcomes,
+            {FoldedNode(variable, nodes) for variable, nodes in node_acc.items()},
+            {FoldedEdge(set(endpoints), edges) for endpoints, edges in edge_acc.items()},
             name if name else f"VariablesGraph(len(nodes) = {len(node_acc)}, len(edges) = {len(edge_acc)})")
 
     def _visualize_outcomes(self, name: str, height: str, width: str, query: Optional[SampleGraph]):
@@ -627,23 +629,3 @@ class SampleSpace:
                     ep[0].string_id + "_query", ep[1].string_id + "_query", label=str(edge.relation), color="red")
 
         net.show(f"{file_name}.html")
-
-    def _visualize_variables_graph(self, name: str, height: str, width: str) -> None:
-        assert name, f"[SampleSpace._visualize_outcomes] The name should be passed"
-        var_graph = self.variables_graph()
-        net = Network(height=height, width=width)
-        file_name = "".join(c for c in name if c.isalnum() or c == '_')
-
-        for node in var_graph.nodes:
-            values = ",".join({f"{n.value}({c})" for n, c in node.value_nodes})
-            net.add_node(
-                node.variable,
-                label=f"{node.variable}:{{{values}, u({node.unobserved_count(self.number_of_outcomes)})}}")
-
-        for edge in var_graph.edges:
-            ep = list(edge.endpoints)
-            relations = ",".join({f"{e.relation}({c})" for e, c in edge.relation_edges})
-            net.add_edge(ep[0], ep[1], label=f"{{{relations}}}")
-
-        net.show(f"{file_name}.html")
-

@@ -29,7 +29,7 @@ def main() -> None:
 
     print(str(rg_1.describe()))
 
-    rg_1.visualize()
+    rg_1.folded_graph().visualize()
 
 
 if __name__ == '__main__':

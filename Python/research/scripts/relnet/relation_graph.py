@@ -20,8 +20,6 @@ created: 2021-08-09
 
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
-from pyvis.network import Network
-
 from .inference_graph import InferenceGraph
 from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider, \
     SampleSpace
@@ -33,7 +31,6 @@ class BuilderComponentsProvider(SampleGraphComponentsProvider):
     """
 
     def __init__(self, variables: Dict[Any, Set[Any]], relations: Set[Any]):
-
         assert variables, \
             f"[BuilderComponentsProvider.__init__] Set of variables should not be empty."
         for var, values in variables.items():
@@ -270,16 +267,6 @@ class RelationGraph(SampleSpace):
             self.name,
             {outcome: count for outcome, count in self._outcomes.items()},
             self._components_provider)
-
-    def visualize(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
-        """
-        Will render this relation graph as HTML page and show in browser
-        :param name: optional name of this visualization, if None then self.name will passed
-        :param height: window height
-        :param width: window width
-        :return: None
-        """
-        self._visualize_variables_graph(name if name else self.name, height, width)
 
     def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """

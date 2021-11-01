@@ -17,38 +17,16 @@ author: CAB
 website: github.com/alexcab
 created: 2021-08-09
 """
-from dataclasses import dataclass
-from typing import List, Dict, Any, Tuple, Set, Optional
+
+from typing import Dict, Any, Set, Optional
+
+from scripts.relnet.activation_graph import ActivationGraph, ActiveNode, ActiveEdge
 from scripts.relnet.sample_graph import \
-    SampleGraph, ValueNode, RelationEdge, SampleGraphComponentsProvider, SampleSpace
+    SampleGraph, SampleGraphComponentsProvider, SampleSpace
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from scripts.relnet.relation_graph import RelationGraphBuilder
-
-
-@dataclass(frozen=True)
-class ActiveRelation:
-    """
-    Immutable data class which represent active relation
-    """
-
-    linked_variable: Any
-    linked_value: Any
-    relation: Any
-    count: int
-
-
-@dataclass(frozen=True)
-class ActiveValue:
-    """
-    Immutable data class which represent active value
-    """
-
-    variable: Any
-    value: Any
-    weight: float
-    active_relations: frozenset[ActiveRelation]
 
 
 class InferenceGraph(SampleSpace):
@@ -85,34 +63,15 @@ class InferenceGraph(SampleSpace):
             {outcome: count for outcome, count in self._outcomes.items()},
             self._components_provider)
 
-    def visualize(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
-        """
-        Will render this inference graph as HTML page and show in browser
-        :param name: optional name of this visualization, if None then self.name will passed
-        :param height: window height
-        :param width: window width
-        :return: None
-        """
-        self._visualize_variables_graph(name if name else self.name, height, width)
-
     def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
         """
         Will render all outcomes as HTML page and show in browser
+        :param name: optional name of this visualization, if None then self.name will passed
         :param height: window height
         :param width: window width
-        :param name: optional name of this visualization, if None then self.name will passed
         :return: None
         """
         self._visualize_outcomes(name if name else self.name, height, width, self.query)
-
-    def visualize_activation(self, height: str = "1024px", width: str = "1024px") -> None:
-        """
-        Will calculate active values and render inference graph with it as HTML page and show in browser
-        :param height: window height
-        :param width: window width
-        :return: None
-        """
-        pass
 
     def describe(self) -> Dict[str, Any]:
         """
@@ -126,34 +85,58 @@ class InferenceGraph(SampleSpace):
             "included_relations": {str(r) for r in self.included_relations()},
         }
 
-    def active_values(self, relation_filter: Set[Any] = None) -> List[ActiveValue]:
+    def activation_graph(self, relation_filter: Set[Any] = None, name: Optional[str] = None) -> ActivationGraph:
         """
-        On given inference graph calculate list of active nodes.
+        On given inference graph builds activation graph.
+        As norm constant we using number_of_outcomes, since assume for values that in query graph the similarity = 1,
+        for the rest of values the similarity < 1
         :param relation_filter: list of relation for which activation will be calculated,
                                 if None then for all relations.
-        :return List[ActiveValue]: list of calculated active values, sorted on weight:
+        :param name: optional name for activation graph, if None then self.name will passed
+        :return ActivationGraph: activation graph:
         """
-        grouped_values: Dict[ValueNode, Tuple[float, Dict[RelationEdge, int]]] = {}
-        active_values: List[ActiveValue] = []
+        grouped_values: Dict[Any, (Dict[Any, float], bool)] = {
+            var: ({val: 0.0 for val in values}, self.query.contains_variable(var))
+            for var, values in self._components_provider.variables()}
+
+        grouped_relations: Dict[frozenset[Any], (Dict[Any, int], bool)] = {}
 
         for outcome, count in self._outcomes.items():
             similarity = outcome.similarity(self.query)
-            for val_node, rel_edges in outcome.external_nodes(set(self.query.nodes), relation_filter).items():
-                if val_node in grouped_values:
-                    sim_acc, edges_count = grouped_values[val_node]
-                    sim_acc += (similarity * count)
-                    for edge in rel_edges:
-                        edges_count[edge] = edges_count.get(edge, 0) + count
-                    grouped_values[val_node] = (sim_acc, edges_count)
+            external_nodes = outcome.external_nodes(set(self.query.nodes), relation_filter)
+            out_query_nodes = {node: (similarity * count, False) for node in external_nodes.keys()}
+            in_query_nodes = {node: (1.0 * count, True) for node in self.query.nodes.intersection(outcome.nodes)}
+            out_query_edges = {(edge, False) for rel_edges in external_nodes.values() for edge in rel_edges}
+            in_query_edges = {(edge, True) for edge in self.query.edges}
+
+            assert out_query_nodes.keys().isdisjoint(in_query_nodes.keys()), \
+                f"[InferenceGraph.active_values] out_query_nodes and in_query_nodes should not intersect, seems a bug"
+            assert out_query_edges.isdisjoint(in_query_edges), \
+                f"[InferenceGraph.active_values] out_query_edges and in_query_edges should not intersect, seems a bug"
+
+            for node, (weight, node_in_query) in (out_query_nodes | in_query_nodes).items():
+                values, in_query = grouped_values[node.variable]
+                assert node_in_query == in_query, \
+                    "[InferenceGraph.active_values] All value of same variable should belong to " \
+                    "query or not, this is a bug"
+                values[node.value] += weight
+
+            for edge, edge_in_query in out_query_edges | in_query_edges:
+                endpoints = frozenset({e.variable for e in edge.endpoints})
+                if endpoints in grouped_relations:
+                    relations, in_query = grouped_relations[endpoints]
+                    assert edge_in_query == in_query, \
+                        "[InferenceGraph.active_values] All edges with same endpoints should belong to " \
+                        "query or not, this is a bug"
+                    relations[edge.relation] = relations.get(edge.relation, 0) + count
                 else:
-                    grouped_values[val_node] = (similarity * count, {e: count for e in rel_edges})
+                    grouped_relations[endpoints] = ({edge.relation: count}, edge_in_query)
 
-        for value_node, (weight, relation_edges) in grouped_values.items():
-            active_relations: Set[ActiveRelation] = set({})
-            for rel_edge, num in relation_edges.items():
-                opp_value = rel_edge.opposite_endpoint(value_node)
-                active_relations.add(ActiveRelation(opp_value.variable, opp_value.value, rel_edge.relation, num))
-            active_values.append(
-                ActiveValue(value_node.variable, value_node.value, weight, frozenset(active_relations)))
-
-        return sorted(active_values, key=lambda x: x.weight, reverse=True)
+        return ActivationGraph(
+            self._components_provider,
+            self.number_of_outcomes,
+            {ActiveNode(var, {v: w / self.number_of_outcomes for v, w in values.items()}, in_query)
+             for var, (values, in_query) in grouped_values.items()},
+            {ActiveEdge(set(endpoints), relations, in_query)
+             for endpoints, (relations, in_query) in grouped_relations.items()},
+            name if name else self.name)

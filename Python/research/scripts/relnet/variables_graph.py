@@ -15,84 +15,88 @@ r"""
 
 author: CAB
 website: github.com/alexcab
-created: 2021-10-29
+created: 2021-11-01
 """
 
-from typing import Any, Dict, Set
+from typing import Any, Dict, Set, Optional
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from scripts.relnet.sample_graph import ValueNode, RelationEdge
+    from scripts.relnet.sample_graph import SampleGraphComponentsProvider
 
 
 class VariableNode:
     """
-    Immutable variable node which contain all variable values
+    Immutable node which represent an variable
     """
 
-    def __init__(self, variable: Any, value_nodes: Dict['ValueNode', int]):
+    def __init__(self, variable: Any):
         self.variable: Any = variable
-        self.value_nodes: frozenset[('ValueNode', int)] = frozenset(value_nodes.items())
-        self._value_nodes_dict: Dict['ValueNode', int] = value_nodes
 
     def __copy__(self):
         raise AssertionError("[VariableNode.__copy__] variable node should not be copied")
 
     def __repr__(self):
-        values = ",".join(sorted([f"{n.value}({c})" for n, c in self.value_nodes]))
-        return f"({self.variable}:{{{values}}})"
+        return f"({self.variable})"
 
     def __hash__(self):
-        return (self.variable, self.value_nodes).__hash__()
+        return self.variable.__hash__()
 
     def __eq__(self, other: Any):
         if isinstance(other, VariableNode):
-            return self.variable == other.variable and self.value_nodes == other.value_nodes
+            return self.variable == other.variable
         return False
-
-    def unobserved_count(self, number_of_outcomes: int) -> int:
-        return number_of_outcomes - sum(self._value_nodes_dict.values())
 
 
 class VariableEdge:
     """
-    Immutable variable edge which contain all relation in between variables
+    Immutable edge in between variables
     """
 
-    def __init__(self, endpoints: frozenset[Any], relation_edges: Dict['RelationEdge', int]):
-        self.endpoints: frozenset[Any] = endpoints
-        self.relation_edges: frozenset[('ValueNode', int)] = frozenset(relation_edges.items())
-        self._relation_edges_dict: Dict['RelationEdge', int] = relation_edges
+    def __init__(self, endpoints: Set[Any]):
+        assert len(endpoints) == 2, f"[VariableEdge.__init__] Expect exactly 2 endpoints, got {endpoints}"
+        self.endpoints: frozenset[Any] = frozenset(endpoints)
 
     def __copy__(self):
         raise AssertionError("[VariableEdge.__copy__] variable edge should not be copied")
 
     def __repr__(self):
-        ep = sorted(list(self.endpoints))
-        relations = ",".join(sorted([f"{e.relation}({c})" for e, c in self.relation_edges]))
-        return f"({ep[0]})--{{{relations}}}--({ep[1]})"
+        ep = sorted(self.endpoints)
+        return f"({ep[0]})--({ep[1]})"
 
     def __hash__(self):
-        return (self.endpoints, self.relation_edges).__hash__()
+        return self.endpoints.__hash__()
 
     def __eq__(self, other: Any):
         if isinstance(other, VariableEdge):
-            return self.endpoints == other.endpoints and self.relation_edges == other.relation_edges
+            return self.endpoints == other.endpoints
         return False
 
 
 class VariablesGraph:
     """
-    Immutable variables graph which represent folded structure of set of outcomes
+    Immutable graph which represent variables level of relation graph
     """
 
-    def __init__(self, nodes: Set[VariableNode], edges: Set[VariableEdge], name: str):
+    def __init__(
+            self,
+            components_provider: 'SampleGraphComponentsProvider',
+            number_of_outcomes: int,
+            nodes: Set[VariableNode],
+            edges: Set[VariableEdge],
+            name: str
+    ):
+        self.number_of_outcomes: int = number_of_outcomes
         self.nodes: frozenset[VariableNode] = frozenset(nodes)
         self.edges: frozenset[VariableEdge] = frozenset(edges)
         self.name: str = name
+        self.variables: frozenset[Any] = frozenset({n.variable for n in self.nodes})
+        self._nodes_dict: Dict[Any, VariableNode] = {n.variable: n for n in nodes}
+        self._components_provider: 'SampleGraphComponentsProvider' = components_provider
 
     def __copy__(self):
-        raise AssertionError("[VariablesGraph.__copy__] folded graph should not be copied")
+        raise AssertionError("[VariableGraph.__copy__] Variable graph should not be copied")
 
     def __repr__(self):
         return self.name
@@ -101,3 +105,11 @@ class VariablesGraph:
         if isinstance(other, VariablesGraph):
             return self.nodes == other.nodes and self.edges == other.edges
         return False
+
+    def variable(self, variable: Any) -> Optional[VariableNode]:
+        """
+        Find variable node for it's variable
+        :param variable: variable to search on
+        :return: VariableNode or None if not in this graph
+        """
+        return self._nodes_dict.get(variable)

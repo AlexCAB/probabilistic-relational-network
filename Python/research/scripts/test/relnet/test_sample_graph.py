@@ -24,7 +24,7 @@ from typing import Any, Dict, Set, Tuple
 
 from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphBuilder, SampleGraph, \
     SampleGraphComponentsProvider, SampleSpace
-from scripts.relnet.variables_graph import VariableNode, VariableEdge
+from scripts.relnet.folded_graph import VariableNode, VariableEdge, FoldedNode, FoldedEdge
 
 
 class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
@@ -513,8 +513,8 @@ class TestSampleSpace(unittest.TestCase):
     def test_included_relations(self):
         self.assertEqual(self.ss_1.included_relations(), frozenset({"r"}))
 
-    def test_variables_graph(self):
-        vg_1 = self.ss_1.variables_graph("vg_1")
+    def test_folded_graph(self):
+        vg_1 = self.ss_1.folded_graph("vg_1")
         gn = self.bcp.get_node
         ge = self.bcp.get_edge
 
@@ -524,12 +524,12 @@ class TestSampleSpace(unittest.TestCase):
 
         self.assertEqual(
             vg_1.nodes, frozenset({
-                VariableNode("b", {gn("b", "2"): 3}),
-                VariableNode("a", {gn("a", "1"): 4, gn("a", "2"): 2})}))
+                FoldedNode("b", {gn("b", "2"): 3}),
+                FoldedNode("a", {gn("a", "1"): 4, gn("a", "2"): 2})}))
 
         self.assertEqual(
             vg_1.edges, frozenset({
-                VariableEdge(frozenset({"a", "b"}), {ge(frozenset({gn("a", "1"), gn("b", "2")}), "r"): 3})}))
+                FoldedEdge({"a", "b"}, {ge(frozenset({gn("a", "1"), gn("b", "2")}), "r"): 3})}))
 
 
 if __name__ == '__main__':

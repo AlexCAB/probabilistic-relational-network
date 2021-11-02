@@ -581,6 +581,8 @@ class SampleSpace:
         """
         node_acc: Dict[Any, Dict[ValueNode, int]] = {}
         edge_acc: Dict[frozenset[Any], Dict[RelationEdge, int]] = {}
+        variables: Dict[Any, Set[Any]] = {var: set(values) for var, values in self._components_provider.variables()}
+        n_of_outcomes: int = self.number_of_outcomes
 
         for outcome, count in self._outcomes.items():
             for node in outcome.nodes:
@@ -598,7 +600,7 @@ class SampleSpace:
         return FoldedGraph(
             self._components_provider,
             self.number_of_outcomes,
-            {FoldedNode(variable, nodes) for variable, nodes in node_acc.items()},
+            {FoldedNode(variable, variables[variable], nodes, n_of_outcomes) for variable, nodes in node_acc.items()},
             {FoldedEdge(set(endpoints), edges) for endpoints, edges in edge_acc.items()},
             name if name else f"VariablesGraph(len(nodes) = {len(node_acc)}, len(edges) = {len(edge_acc)})")
 

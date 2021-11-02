@@ -18,7 +18,7 @@ website: github.com/alexcab
 created: 2021-11-01
 """
 
-from typing import Any, Dict, Set, Optional
+from typing import Any, Set
 
 from typing import TYPE_CHECKING
 
@@ -92,7 +92,6 @@ class VariablesGraph:
         self.edges: frozenset[VariableEdge] = frozenset(edges)
         self.name: str = name
         self.variables: frozenset[Any] = frozenset({n.variable for n in self.nodes})
-        self._nodes_dict: Dict[Any, VariableNode] = {n.variable: n for n in nodes}
         self._components_provider: 'SampleGraphComponentsProvider' = components_provider
 
     def __copy__(self):
@@ -105,11 +104,3 @@ class VariablesGraph:
         if isinstance(other, VariablesGraph):
             return self.nodes == other.nodes and self.edges == other.edges
         return False
-
-    def variable(self, variable: Any) -> Optional[VariableNode]:
-        """
-        Find variable node for it's variable
-        :param variable: variable to search on
-        :return: VariableNode or None if not in this graph
-        """
-        return self._nodes_dict.get(variable)

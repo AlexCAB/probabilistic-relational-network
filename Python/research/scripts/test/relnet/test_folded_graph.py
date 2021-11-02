@@ -29,17 +29,23 @@ class TestFoldedNode(unittest.TestCase):
 
     vn_1 = ValueNode("a", "1")
     vn_2 = ValueNode("a", "2")
-    fr_1 = FoldedNode("a", {vn_1: 1, vn_2: 2})
+    fr_1 = FoldedNode("a", {"1", "2"}, {vn_1: 1, vn_2: 2}, 5)
 
     def test_init(self):
         self.assertEqual(self.fr_1.variable, "a")
+        self.assertEqual(self.fr_1.values, frozenset({"1", "2"}))
         self.assertEqual(self.fr_1.value_nodes, frozenset({(self.vn_1, 1), (self.vn_2, 2)}))
 
     def test_repr(self):
         self.assertEqual(self.fr_1.__repr__(), "(a:{1(1),2(2)})")
 
     def test_unobserved_count(self):
-        self.assertEqual(self.fr_1.unobserved_count(5), 2)
+        self.assertEqual(self.fr_1.unobserved_count(), 2)
+
+    def test_marginal_distribution(self):
+        self.assertEqual(
+            self.fr_1.marginal_distribution(),
+            {"1": 0.2, "2": 0.4, "unobserved": 0.4})
 
 
 class TestFoldedEdge(unittest.TestCase):
@@ -67,8 +73,8 @@ class TestFoldedGraph(unittest.TestCase):
     vn_b2 = ValueNode("b", "2")
     re_1 = RelationEdge(frozenset({vn_a1, vn_b1}), "r")
     re_2 = RelationEdge(frozenset({vn_a1, vn_b2}), "s")
-    fr_a = FoldedNode("a", {vn_a1: 1})
-    fr_b = FoldedNode("b", {vn_b1: 1, vn_b2: 2})
+    fr_a = FoldedNode("a", {"1"}, {vn_a1: 1}, 5)
+    fr_b = FoldedNode("b", {"1", "2"}, {vn_b1: 1, vn_b2: 2}, 5)
     fe_1 = FoldedEdge({fr_a, fr_b}, {re_1: 1, re_2: 2})
     fg_1 = FoldedGraph(bcp, 123, {fr_a, fr_b}, {fe_1}, "vg_1")
 
@@ -77,6 +83,10 @@ class TestFoldedGraph(unittest.TestCase):
         self.assertEqual(self.fg_1.edges, frozenset({self.fe_1}))
         self.assertEqual(self.fg_1.name, "vg_1")
         self.assertEqual(self.fg_1.variables, frozenset({"a", "b"}))
+
+    def test_variable_node(self):
+        self.assertEqual(self.fg_1.folded_node("a"), self.fr_a)
+        self.assertEqual(self.fg_1.folded_node("s"), None)
 
 
 if __name__ == '__main__':

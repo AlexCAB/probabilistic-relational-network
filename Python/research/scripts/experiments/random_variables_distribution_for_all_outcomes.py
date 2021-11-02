@@ -18,13 +18,7 @@ website: github.com/alexcab
 created: 2021-09-29
 """
 
-
-import logging
-import math
-
-from scripts.relationnetlib.relation_graph import RelationGraph
-from scripts.relationnetlib.relation_type import RelationType
-from scripts.relationnetlib.variable_node import VariableNode
+from scripts.relnet.relation_graph import RelationGraphBuilder, RelationGraph
 
 
 def random_variables_distribution_for_all_outcomes():
@@ -32,36 +26,41 @@ def random_variables_distribution_for_all_outcomes():
     # Parameters
 
     max_number_of_variables = 3
-    max_number_of_values = 4
-    max_number_of_relation_type = 2
+    max_number_of_values = 3
+    max_number_of_relation_type = 3
 
     # Helpers
 
-    log = logging.getLogger('random_variables_distribution_for_all_outcomes')
-
     def make_relation_graph(n_variables: int, n_values: int, n_rel_type: int) -> RelationGraph:
-        relation_types = [RelationType(f"RT_{i}") for i in range(1, n_rel_type + 1)]
-        variables = [VariableNode(f"VAR_{i}",
-                                  [f"VAL_{i}_{j}" for j in range(1, n_values + 1) if not (i == 1 and j == 2)])
-                     for i in range(1, n_variables + 1)]
-        relation_graph = RelationGraph("outcomes_space_power", relation_types, variables)
-        relation_graph.generate_all_possible_outcomes()
-        log.info(f"########### {relation_graph.describe()}")
+        relation_types = {f"RT_{i}" for i in range(1, n_rel_type + 1)}
+        variables = {
+            f"VAR_{i}": [f"VAL_{i}_{j}" for j in range(1, n_values + 1) if not (i == 1 and j == 2)]
+            for i in range(1, n_variables + 1)}
+
+        relation_graph = RelationGraphBuilder(variables, relation_types, "outcomes_space_power") \
+            .generate_all_possible_outcomes() \
+            .build()
+
         return relation_graph
 
     def calc_variables_distribution(relation_graph: RelationGraph) -> None:
-        for var in relation_graph.get_variable_nodes().values():
-            distribution = var.marginal_distribution()
-            log.info(f"V_ID = {var.variable_id}, distribution = {distribution}")
+        folded_graph = relation_graph.folded_graph()
+
+        for variable, _ in relation_graph.variables:
+            distribution = folded_graph.folded_node(variable).marginal_distribution()
+
+            print(f"V_ID = {variable}, distribution = {distribution}")
+
             unobserved = distribution.pop('unobserved')
-            first_var_id, first_var_prop = list(distribution.items())[0]
-            for var_id, prop in distribution.items():
-                assert first_var_prop == prop, \
-                    f"Variable {var_id} have not same prob {prop} as first variable {first_var_id}, " \
-                    f"which have prob {first_var_id}, this should not happens."
+            first_value, first_value_prop = list(distribution.items())[0]
+
+            for value, prop in distribution.items():
+                assert first_value_prop == prop, \
+                    f"Value {value} of variable {variable} have not same prob {prop} as first " \
+                    f"value {first_value}, which have prob {first_value_prop}, this should not happens."
                 assert unobserved != prop, \
-                    f"Variable {var_id} have same prob {prop} as unobserved variable, " \
-                    f"which have prob {unobserved}, this should not happens."
+                    f"Value {value} have same prob {prop} as unobserved value, " \
+                    f"this should not happens."
 
     # Run over ala graphs
 
@@ -72,5 +71,4 @@ def random_variables_distribution_for_all_outcomes():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     random_variables_distribution_for_all_outcomes()

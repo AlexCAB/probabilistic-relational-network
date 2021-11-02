@@ -524,8 +524,8 @@ class TestSampleSpace(unittest.TestCase):
 
         self.assertEqual(
             vg_1.nodes, frozenset({
-                FoldedNode("b", {gn("b", "2"): 3}),
-                FoldedNode("a", {gn("a", "1"): 4, gn("a", "2"): 2})}))
+                FoldedNode("b", {"2", "3"}, {gn("b", "2"): 3}, 3),
+                FoldedNode("a", {"1", "2"}, {gn("a", "1"): 4, gn("a", "2"): 2}, 3)}))
 
         self.assertEqual(
             vg_1.edges, frozenset({

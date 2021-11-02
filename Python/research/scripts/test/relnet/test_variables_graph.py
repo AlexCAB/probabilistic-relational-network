@@ -104,10 +104,6 @@ class TestVariablesGraph(unittest.TestCase):
         self.assertNotEqual(id(self.vg_1), id(vg_2))
         self.assertEqual(self.vg_1, vg_2)
 
-    def test_variable_node(self):
-        self.assertEqual(self.vg_1.variable("a"), self.vr_1)
-        self.assertEqual(self.vg_1.variable("s"), None)
-
 
 if __name__ == '__main__':
     unittest.main()

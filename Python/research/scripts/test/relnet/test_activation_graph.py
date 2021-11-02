@@ -22,8 +22,6 @@ import unittest
 
 from scripts.relnet.activation_graph import ActiveNode, ActiveEdge, ActivationGraph
 from scripts.relnet.relation_graph import BuilderComponentsProvider
-from scripts.relnet.sample_graph import ValueNode, RelationEdge
-from scripts.relnet.folded_graph import FoldedNode, FoldedEdge, FoldedGraph
 
 
 class TestActiveNode(unittest.TestCase):

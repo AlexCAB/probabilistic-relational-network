@@ -96,7 +96,7 @@ class InferenceGraph(SampleSpace):
         :return ActivationGraph: activation graph:
         """
         grouped_values: Dict[Any, (Dict[Any, float], bool)] = {
-            var: ({val: 0.0 for val in values}, self.query.contains_variable(var))
+            var: ({val: 0.0 for val in values}, var in self.query.included_variables)
             for var, values in self._components_provider.variables()}
 
         grouped_relations: Dict[frozenset[Any], (Dict[Any, int], bool)] = {}

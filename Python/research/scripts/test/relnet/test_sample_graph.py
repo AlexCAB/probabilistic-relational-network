@@ -23,8 +23,8 @@ from copy import copy
 from typing import Any, Dict, Set, Tuple
 
 from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphBuilder, SampleGraph, \
-    SampleGraphComponentsProvider, SampleSpace
-from scripts.relnet.folded_graph import VariableNode, VariableEdge, FoldedNode, FoldedEdge
+    SampleGraphComponentsProvider, SampleSpace, DirectedRelation
+from scripts.relnet.folded_graph import FoldedNode, FoldedEdge
 
 
 class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
@@ -59,8 +59,17 @@ class MockSampleGraphComponentsProvider(SampleGraphComponentsProvider):
         assert endpoints.issubset(self.nodes.values()), \
             f"[MockSampleGraphComponentsProvider.get_edge] Endpoints nodes should be created first, " \
             f"got {endpoints} where nodes {self.nodes}"
-        assert relation in self._relations, \
+        assert (relation.relation if isinstance(relation, DirectedRelation) else relation) in self._relations, \
             f"[MockSampleGraphComponentsProvider.get_node] Unknown relation {relation}"
+
+        if isinstance(relation, DirectedRelation):
+            variables = {ep.variable for ep in endpoints}
+            assert relation.source_variable in variables, \
+                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation source " \
+                f"variable {relation.source_variable}"
+            assert relation.target_variable in variables, \
+                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation target " \
+                f"variable {relation.target_variable}"
 
         if (endpoints, relation) in self.edges:
             return self.edges[(endpoints, relation)]
@@ -137,6 +146,32 @@ class TestRelationEdge(unittest.TestCase):
             self.e_1.opposite_endpoint(self.b_2)
 
 
+class TestDirectedRelation(unittest.TestCase):
+
+    dr_1 = DirectedRelation("a", "b", "r")
+
+    def test_init(self):
+
+        self.assertEqual(self.dr_1.source_variable, "a")
+        self.assertEqual(self.dr_1.target_variable, "b")
+        self.assertEqual(self.dr_1.relation, "r")
+
+    def test_hash(self):
+        self.assertEqual(self.dr_1.__hash__(), ("a", "b", "r").__hash__())
+
+    def test_repr(self):
+        self.assertEqual(self.dr_1.__repr__(), "b[a->r]")
+
+    def test_copy(self):
+        with self.assertRaises(AssertionError):
+            copy(self.dr_1)
+
+    def test_eq(self):
+        dr_2 = DirectedRelation("a", "b", "r")
+        self.assertNotEqual(id(self.dr_1), id(dr_2))
+        self.assertEqual(self.dr_1, dr_2)
+
+
 class TestSampleGraphBuilder(unittest.TestCase):
 
     builder = MockSampleGraphComponentsProvider(
@@ -147,6 +182,8 @@ class TestSampleGraphBuilder(unittest.TestCase):
     c_1 = builder.get_node("c", "1")
     e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
     e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
+    de_1 = builder.get_edge(frozenset({a_1, b_1}), DirectedRelation("a", "b", "r"))
+    de_2 = builder.get_edge(frozenset({b_1, c_1}), DirectedRelation("b", "c", "r"))
 
     def test_init(self):
         s_1 = SampleGraphBuilder(self.builder, "s", {self.a_1, self.b_1}, {self.e_1}).build()
@@ -264,6 +301,15 @@ class TestSampleGraphBuilder(unittest.TestCase):
                 .add_relation({("a", "1"), ("b", "1")}, "s") \
                 .add_relation({("a", "1"), ("b", "1")}, "r")
 
+    def test_add_directed_relation(self):
+        b_1 = SampleGraphBuilder(self.builder) \
+            .add_directed_relation(("a", "1"), ("b", "1"), "r") \
+            .add_directed_relation(("b", "1"), ("c", "1"), "r")
+        s_1 = b_1.build()
+
+        self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
+        self.assertEqual(s_1.edges, frozenset({self.de_1, self.de_2}))
+
     def test_build(self):
         with self.assertRaises(AssertionError):
             SampleGraphBuilder(self.builder).build()
@@ -343,10 +389,6 @@ class TestSampleGraph(unittest.TestCase):
 
         self.assertFalse(
             self.s_1.is_subgraph(SampleGraph(self.builder, frozenset({self.a_1}), frozenset({}), None)))
-
-    def test_contains_variable(self):
-        self.assertTrue(self.s_1.contains_variable("a"))
-        self.assertFalse(self.s_1.contains_variable("not_in_graph"))
 
     def test_value_for_variable(self):
         self.assertEqual(self.s_1.value_for_variable("a"), "1")
@@ -470,6 +512,26 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(s_1.external_nodes({n_a1}), {n_b1: {e_abr}, n_c1: {e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
         self.assertEqual(s_1.external_nodes({n_a1, n_c1}), {n_b1: {e_abr, e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
         self.assertEqual(s_1.external_nodes({n_a1}, {"r"}), {n_b1: {e_abr}, n_c1: {e_bcr}})
+
+    def test_variables_subgraph(self):
+        sg_1 = self.s_1.variables_subgraph({"a"})
+        self.assertEqual(
+            (sg_1.nodes, sg_1.edges),
+            (frozenset({self.a_1}), frozenset({})))
+        sg_2 = self.s_1.variables_subgraph({"a", "b"})
+        self.assertEqual(
+            (sg_2.nodes, sg_2.edges),
+            (frozenset({self.a_1, self.b_1}), frozenset({self.e_1})))
+
+    def test_can_be_joined(self):
+        e_3 = self.builder.get_edge(frozenset({self.a_1, self.b_1}), "g")
+        s_3 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), "s_3")
+        s_4 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({e_3}), "s_4")
+
+        self.assertTrue(self.s_1.can_be_joined({s_3}))
+        self.assertFalse(self.s_1.can_be_joined({s_4}))
+        self.assertTrue(self.s_2.can_be_joined({s_3}))
+        self.assertTrue(self.s_2.can_be_joined({s_4}))
 
 
 class TestSampleSpace(unittest.TestCase):

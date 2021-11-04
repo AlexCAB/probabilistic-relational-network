@@ -104,6 +104,33 @@ class RelationEdge:
         raise AssertionError(f"[ValueNode.opposite_endpoint] Value node {node} is not one of endpoints")
 
 
+class DirectedRelation:
+    """
+    Immutable relation which encode directionality beside relation type itself
+    """
+
+    def __init__(self, source_variable: Any, target_variable: Any, relation: Any):
+        self.source_variable: Any = source_variable
+        self.target_variable: Any = target_variable
+        self.relation: Any = relation
+
+    def __hash__(self):
+        return (self.source_variable, self.target_variable, self.relation).__hash__()
+
+    def __repr__(self):
+        return f"{self.target_variable}[{self.source_variable}->{self.relation}]"
+
+    def __copy__(self):
+        raise AssertionError(
+            "[DirectedRelation.__copy__] Directed relation should not be copied")
+
+    def __eq__(self, other: Any):
+        if isinstance(other, DirectedRelation):
+            return self.source_variable == other.source_variable and self.target_variable == other.target_variable\
+                   and self.relation == other.relation
+        return False
+
+
 class SampleGraphComponentsProvider(ABC):
     """
     Interface if sample graph components provider which construct nodes and edges
@@ -254,6 +281,21 @@ class SampleGraphBuilder:
         self._nodes.update(nodes)
         return self
 
+    def add_directed_relation(
+            self,
+            source: Tuple[Any, Any],
+            target: Tuple[Any, Any],
+            relation: Any
+    ) -> 'SampleGraphBuilder':
+        """
+        To add relation edge with arrow relation in to sample graph
+        :param source: source (variable, value)
+        :param target: target (variable, value)
+        :param relation: relation type
+        :return: self
+        """
+        return self.add_relation({source, target}, DirectedRelation(source[0], target[0], relation))
+
     def build(self) -> 'SampleGraph':
         """
         To build composed sample graph
@@ -283,6 +325,7 @@ class SampleGraph:
         self.name: str = name if name else (
                 "{" + '; '.join(sorted([str(e) for e in self.edges] if self.edges else
                                        [str(n) for n in self.nodes])) + "}")
+        self.included_variables: frozenset[Any] = frozenset({n.variable for n in nodes})
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __hash__(self):
@@ -367,17 +410,6 @@ class SampleGraph:
         :return: True if  other sample graph is subgraph, False otherwise
         """
         return self.hash.issubset(other.hash)
-
-    def contains_variable(self, variable: Any) -> bool:
-        """
-        Check if this graph have value node of given variable
-        :param variable: variable to check with
-        :return: True if have value node if given variable, False otherwise
-        """
-        for n in self.nodes:
-            if n.variable == variable:
-                return True
-        return False
 
     def value_for_variable(self, variable: Any) -> Optional[Any]:
         """
@@ -497,6 +529,39 @@ class SampleGraph:
             return acc_nodes
         else:
             return {}  # All value nodes checked
+
+    def variables_subgraph(self, variables: Set[Any]) -> 'SampleGraph':
+        """
+        Filter nodes which variable are in variables and edges which all
+        endpoints variables are in given variables set.
+        :param variables: variables set to filter on
+        :return: filtered sets of nodes and edges
+        """
+        return SampleGraph(
+            self._components_provider,
+            frozenset({n for n in self.nodes if n.variable in variables}),
+            frozenset({e for e in self.edges if {ep.variable for ep in e.endpoints}.issubset(variables)}),
+            None)
+
+    def can_be_joined(self, others: Set['SampleGraph']) -> bool:
+        """
+        Check if this graph have no conflicts with other, i.e. have no
+        edges with same endpoints but different relations
+        :param others:
+        :return:
+        """
+        edge_acc: Dict[frozenset[Any], Set[Any]] = {}
+
+        for other_sample in others:
+            for other_edge in other_sample.edges:
+                edge_acc[other_edge.endpoints] = edge_acc.get(other_edge.endpoints, set({})) | {other_edge.relation}
+
+        for self_edge in self.edges:
+            if self_edge.endpoints in edge_acc:
+                other_relations = edge_acc[self_edge.endpoints]
+                if len(other_relations) != 1 or other_relations.pop() != self_edge.relation:
+                    return False
+        return True
 
 
 class SampleSpace:

@@ -18,11 +18,12 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
+from math import prod
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from .inference_graph import InferenceGraph
 from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider, \
-    SampleSpace
+    SampleSpace, DirectedRelation
 
 
 class BuilderComponentsProvider(SampleGraphComponentsProvider):
@@ -67,8 +68,17 @@ class BuilderComponentsProvider(SampleGraphComponentsProvider):
         assert endpoints.issubset(self.nodes.values()), \
             f"[BuilderComponentsProvider.get_edge] Endpoints nodes should be created first, " \
             f"got {endpoints} where nodes {self.nodes}"
-        assert relation in self._relations, \
+        assert (relation.relation if isinstance(relation, DirectedRelation) else relation) in self._relations, \
             f"[BuilderComponentsProvider.get_node] Unknown relation {relation}"
+
+        if isinstance(relation, DirectedRelation):
+            variables = {ep.variable for ep in endpoints}
+            assert relation.source_variable in variables, \
+                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation source " \
+                f"variable {relation.source_variable}"
+            assert relation.target_variable in variables, \
+                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation target " \
+                f"variable {relation.target_variable}"
 
         if (endpoints, relation) in self.edges:
             return self.edges[(endpoints, relation)]
@@ -215,7 +225,7 @@ class RelationGraphBuilder:
                 outcome.transform_with_replaced_values({var: val}, f"O_{self.next_id()}")
                 for outcome in self._outcomes
                 for val in values[1:]  # Iterate over all value except first
-                if outcome.contains_variable(var)])
+                if var in outcome.included_variables])
 
         for outcome, count in self._outcomes.items():
             assert count == 1, \
@@ -312,3 +322,39 @@ class RelationGraph(SampleSpace):
             query,
             name if name else f"inference_of_{self.name}",
             selected_outcomes)
+
+    def joined_on_variables(self, variables: Set[Any], name: Optional[str] = None) -> 'RelationGraph':
+        """
+        Will join over all outcomes and return new relation graph with joined outcomes
+        :param variables: set of variables to join on
+        :param name: optional name for the joined graph
+        :return: new relation graph with joined outcomes
+        """
+        outcomes_acc: Dict[frozenset[Any], List[Set[(SampleGraph, int)]]] = {}
+        result_outcomes: Dict[SampleGraph, int] = {}
+
+        # TODO Далее:
+        # TODO Сгрупировать оуткомы которые могут быть обьеденены в List[Set[(SampleGraph, int)]]
+        # TODO используя can_be_joined()
+        # TODO Если в группе более одного оуткома то обьединить их (добавить метод
+        # TODO SampleGraphBuilder.build_joined(samples: Set[SampleGraph]))
+        # TODO Если в группе всего 1 оутком то просто переместить в result_outcomes.
+
+        for outcome, count in self._outcomes.items():
+            if variables.issubset(outcome.included_variables):  # If have all variables included
+                nodes, edges = outcome.variables_subgraph(variables)
+                outcome_hash = nodes.union(edges)
+                outcomes_acc[outcome_hash] = outcomes_acc.get(outcome_hash, set({})).union({(outcome, count)})
+            else:
+                result_outcomes[outcome] = count
+
+
+
+
+        for _, outcomes in to_join_outcomes.items():
+            count = prod([c for _, c in outcomes])
+            nodes = frozenset(set().union({o.nodes for o, _ in outcomes}))
+            edges = frozenset(set().union({o.edges for o, _ in outcomes}))
+            result_outcomes[SampleGraph(self._components_provider, nodes, edges, None)] = count
+
+        return RelationGraph(self._components_provider, name if name else self.name, result_outcomes)

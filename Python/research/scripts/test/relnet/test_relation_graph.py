@@ -22,7 +22,7 @@ import unittest
 from copy import copy
 
 from scripts.relnet.relation_graph import BuilderComponentsProvider, RelationGraphBuilder, RelationGraph
-from scripts.relnet.sample_graph import ValueNode, SampleGraphBuilder
+from scripts.relnet.sample_graph import ValueNode, SampleGraphBuilder, DirectedRelation
 
 
 class TestBuilderComponentsProvider(unittest.TestCase):
@@ -89,6 +89,7 @@ class TestBuilderComponentsProvider(unittest.TestCase):
         self.assertEqual(e_3.endpoints, frozenset({n_1, n_2}))
         self.assertEqual(e_3.relation, "s")
         self.assertNotEqual(id(e_1), id(e_3))
+
         n_3 = self.b_1.get_node("b", "3")
 
         e_4 = self.b_1.get_edge(frozenset({n_1, n_3}), "r")
@@ -96,10 +97,22 @@ class TestBuilderComponentsProvider(unittest.TestCase):
         self.assertEqual(e_4.relation, "r")
         self.assertNotEqual(id(e_1), id(e_4))
 
+        dr_1 = DirectedRelation("a", "b", "r")
+        e_5 = self.b_1.get_edge(frozenset({n_1, n_2}), dr_1)
+        self.assertEqual(e_5.endpoints, frozenset({n_1, n_2}))
+        self.assertEqual(e_5.relation, dr_1)
+        self.assertNotEqual(id(e_1), id(e_5))
+
         with self.assertRaises(AssertionError):  # Unknown endpoint node
             self.b_1.get_edge(frozenset({n_1, ValueNode("a", "2")}), "r")
         with self.assertRaises(AssertionError):  # Unknown relation
             self.b_1.get_edge(frozenset({n_1, n_2}), "unknown_relation")
+        with self.assertRaises(AssertionError):  # Unknown directed relation
+            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("a", "b", "unknown_relation"))
+        with self.assertRaises(AssertionError):  # Unknown directed source variable
+            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("unknown_variable", "b", "r"))
+        with self.assertRaises(AssertionError):  # Unknown directed target variable
+            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("a", "unknown_variable", "r"))
 
 
 class TestRelationGraphBuilder(unittest.TestCase):
@@ -450,6 +463,55 @@ class TestRelationGraph(unittest.TestCase):
         self.assertEqual(
             rg_1.inference(q_4).outcomes(),
             frozenset({(o_5, 5)}))
+
+    def test_joined_on_variables(self):
+        o_1 = SampleGraphBuilder(self.bcp).set_name("o_1") \
+            .build_single_node("a", "1")
+        o_2 = SampleGraphBuilder(self.bcp).set_name("o_2") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .build()
+        o_3 = SampleGraphBuilder(self.bcp).set_name("o_3") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_4 = SampleGraphBuilder(self.bcp).set_name("o_4") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_5 = SampleGraphBuilder(self.bcp).set_name("o_5") \
+            .add_relation({("a", "1"), ("b", "2")}, "s") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+
+        rg_1 = RelationGraph(self.bcp, "rg_1", {o_1: 2, o_2: 3, o_3: 4, o_4: 5, o_5: 6})
+        jg_1 = rg_1.joined_on_variables({"a", "jg_1"})
+
+        self.assertEqual(jg_1.name, "jg_1")
+        self.assertEqual(
+            jg_1.outcomes(), frozenset({
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "s")
+                 .add_relation({("b", "2"), ("c", "3")}, "r")
+                 .build(), 10),
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "s")
+                 .add_relation({("b", "2"), ("c", "3")}, "r")
+                 .build(), 10),
+
+
+
+            })
+
+
+
+        )
+
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':

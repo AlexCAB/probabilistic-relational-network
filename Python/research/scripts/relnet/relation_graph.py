@@ -113,6 +113,9 @@ class RelationGraphBuilder:
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = self._components_provider.variables()
         self.relations: frozenset[Any] = self._components_provider.relations()
 
+    def __repr__(self):
+        return f"RelationGraphBuilder(name = {self._name}, len(outcomes) = {len(self._outcomes)})"
+
     def set_name(self, name: Optional[str]):
         """
         Update relation graphs name with given
@@ -330,31 +333,30 @@ class RelationGraph(SampleSpace):
         :param name: optional name for the joined graph
         :return: new relation graph with joined outcomes
         """
-        outcomes_acc: Dict[frozenset[Any], List[Set[(SampleGraph, int)]]] = {}
-        result_outcomes: Dict[SampleGraph, int] = {}
-
-        # TODO Далее:
-        # TODO Сгрупировать оуткомы которые могут быть обьеденены в List[Set[(SampleGraph, int)]]
-        # TODO используя can_be_joined()
-        # TODO Если в группе более одного оуткома то обьединить их (добавить метод
-        # TODO SampleGraphBuilder.build_joined(samples: Set[SampleGraph]))
-        # TODO Если в группе всего 1 оутком то просто переместить в result_outcomes.
+        outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}
+        rel_graph_builder = RelationGraphBuilder(name=name, components_provider=self._components_provider)
 
         for outcome, count in self._outcomes.items():
             if variables.issubset(outcome.included_variables):  # If have all variables included
-                nodes, edges = outcome.variables_subgraph(variables)
-                outcome_hash = nodes.union(edges)
-                outcomes_acc[outcome_hash] = outcomes_acc.get(outcome_hash, set({})).union({(outcome, count)})
+                outcome_hash = outcome.variables_subgraph_hash(variables)
+                if outcome_hash in outcomes_acc:
+                    i = 0
+                    while 0 <= i < len(outcomes_acc[outcome_hash]):
+                        sample_builder, count_acc = outcomes_acc[outcome_hash][i]
+                        if sample_builder.can_sample_be_joined(outcome):  # Add to one of exist groups
+                            sample_builder.join_sample(outcome)
+                            count_acc.append(count)
+                            i = -1
+                        else:
+                            i += 1
+                    if i >= 0:  # Add to new group
+                        outcomes_acc[outcome_hash].append((outcome.builder().set_name(None), [count]))
+                else:
+                    outcomes_acc[outcome_hash] = [(outcome.builder().set_name(None), [count])]
             else:
-                result_outcomes[outcome] = count
+                rel_graph_builder.add_outcome(outcome, count)
+        for _, sample_builders in outcomes_acc.items():
+            for sample_builder, counts in sample_builders:
+                rel_graph_builder.add_outcome(sample_builder.build(), prod(counts))
 
-
-
-
-        for _, outcomes in to_join_outcomes.items():
-            count = prod([c for _, c in outcomes])
-            nodes = frozenset(set().union({o.nodes for o, _ in outcomes}))
-            edges = frozenset(set().union({o.edges for o, _ in outcomes}))
-            result_outcomes[SampleGraph(self._components_provider, nodes, edges, None)] = count
-
-        return RelationGraph(self._components_provider, name if name else self.name, result_outcomes)
+        return rel_graph_builder.build()

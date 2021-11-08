@@ -169,10 +169,14 @@ class SampleGraphBuilder:
         self._name: Optional[str] = name
         self._nodes: Set[ValueNode] = nodes if nodes else set([])
         self._edges: Set[RelationEdge] = edges if edges else set([])
-        self._endpoints: Set[frozenset[ValueNode]] = {e.endpoints for e in self._edges}
+        self._endpoints: Dict[frozenset[ValueNode], RelationEdge] = {e.endpoints: e for e in self._edges}
 
     def __copy__(self):
         return SampleGraphBuilder(self._components_provider, self._name, set(self._nodes), set(self._edges))
+
+    def __repr__(self):
+        return f"RelationGraphBuilder(" \
+               f"name = {self._name}, len(nodes) = {len(self._nodes)}, len(edges) = {len(self._edges)})"
 
     def set_name(self, name: Optional[str]):
         """
@@ -254,7 +258,7 @@ class SampleGraphBuilder:
             nodes = {self._components_provider.get_node(var, val) for var, val in endpoints}
             edge = self._components_provider.get_edge(frozenset(nodes), relation)
             self._edges.add(edge)
-            self._endpoints.add(edge.endpoints)
+            self._endpoints[edge.endpoints] = edge
             self._nodes.update(nodes)
 
         return self.build()
@@ -277,7 +281,7 @@ class SampleGraphBuilder:
             f"[SampleGraphBuilder.add_relation] Edge {edge} was added previously"
 
         self._edges.add(edge)
-        self._endpoints.add(edge.endpoints)
+        self._endpoints[edge.endpoints] = edge
         self._nodes.update(nodes)
         return self
 
@@ -295,6 +299,38 @@ class SampleGraphBuilder:
         :return: self
         """
         return self.add_relation({source, target}, DirectedRelation(source[0], target[0], relation))
+
+    def can_sample_be_joined(self,  sample: 'SampleGraph') -> bool:
+        """
+        Check structure of sample if there is no conflicts (no edges with same endpoint but different relation type).
+        :param sample: sample to be joined
+        :return: True if no conflicts found, False otherwise
+        """
+        assert sample.is_compatible(self._components_provider), \
+            f"[SampleGraphBuilder.can_sample_be_joined] Incompatible sample {sample}"
+
+        for edge in sample.edges:
+            if edge.endpoints in self._endpoints and edge.relation != self._endpoints[edge.endpoints].relation:
+                return False
+        return True
+
+    def join_sample(self, sample: 'SampleGraph'):
+        """
+        Will add all nodes and edges from sample to this builder, if there is conflict will throw error
+        :param sample: sample graph to be added
+        :return: self
+        """
+        assert sample.is_compatible(self._components_provider), \
+            f"[SampleGraphBuilder.join_sample] Incompatible sample {sample}"
+
+        for edge in sample.edges:
+            assert edge.endpoints not in self._endpoints or edge.relation == self._endpoints[edge.endpoints].relation,\
+                f"[SampleGraphBuilder.join_sample] Sample can't be joined since have conflicting edge {edge}"
+            self._edges.add(edge)
+            self._endpoints[edge.endpoints] = edge
+            self._nodes.update(edge.endpoints)
+
+        return self
 
     def build(self) -> 'SampleGraph':
         """
@@ -530,38 +566,16 @@ class SampleGraph:
         else:
             return {}  # All value nodes checked
 
-    def variables_subgraph(self, variables: Set[Any]) -> 'SampleGraph':
+    def variables_subgraph_hash(self, variables: Set[Any]) -> frozenset[Any]:
         """
         Filter nodes which variable are in variables and edges which all
-        endpoints variables are in given variables set.
+        endpoints variables are in given variables set, then pack them in frozenset.
         :param variables: variables set to filter on
         :return: filtered sets of nodes and edges
         """
-        return SampleGraph(
-            self._components_provider,
-            frozenset({n for n in self.nodes if n.variable in variables}),
-            frozenset({e for e in self.edges if {ep.variable for ep in e.endpoints}.issubset(variables)}),
-            None)
-
-    def can_be_joined(self, others: Set['SampleGraph']) -> bool:
-        """
-        Check if this graph have no conflicts with other, i.e. have no
-        edges with same endpoints but different relations
-        :param others:
-        :return:
-        """
-        edge_acc: Dict[frozenset[Any], Set[Any]] = {}
-
-        for other_sample in others:
-            for other_edge in other_sample.edges:
-                edge_acc[other_edge.endpoints] = edge_acc.get(other_edge.endpoints, set({})) | {other_edge.relation}
-
-        for self_edge in self.edges:
-            if self_edge.endpoints in edge_acc:
-                other_relations = edge_acc[self_edge.endpoints]
-                if len(other_relations) != 1 or other_relations.pop() != self_edge.relation:
-                    return False
-        return True
+        return frozenset(
+            {n for n in self.nodes if n.variable in variables}.union(
+                {e for e in self.edges if {ep.variable for ep in e.endpoints}.issubset(variables)}))
 
 
 class SampleSpace:

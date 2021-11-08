@@ -182,6 +182,8 @@ class TestSampleGraphBuilder(unittest.TestCase):
     c_1 = builder.get_node("c", "1")
     e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
     e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
+    e_3 = builder.get_edge(frozenset({a_1, b_1}), "s")
+    e_4 = builder.get_edge(frozenset({b_1, c_1}), "s")
     de_1 = builder.get_edge(frozenset({a_1, b_1}), DirectedRelation("a", "b", "r"))
     de_2 = builder.get_edge(frozenset({b_1, c_1}), DirectedRelation("b", "c", "r"))
 
@@ -198,6 +200,11 @@ class TestSampleGraphBuilder(unittest.TestCase):
         b_2 = copy(b_1)
         self.assertNotEqual(id(b_1), id(b_2))
         self.assertEqual(b_1.build(), b_2.build())
+
+    def test_repr(self):
+        self.assertEqual(
+            str(SampleGraphBuilder(self.builder, "b_1", {self.a_1, self.b_1}, {self.e_1})),
+            "RelationGraphBuilder(name = b_1, len(nodes) = 2, len(edges) = 1)")
 
     def test_set_name(self):
         s_1 = SampleGraphBuilder(self.builder, None, {self.a_1})\
@@ -309,6 +316,33 @@ class TestSampleGraphBuilder(unittest.TestCase):
 
         self.assertEqual(s_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
         self.assertEqual(s_1.edges, frozenset({self.de_1, self.de_2}))
+
+    def test_can_sample_be_joined(self):
+        sgb_1 = SampleGraphBuilder(self.builder, "b_1", {self.a_1, self.b_1}, {self.e_1})
+        s_1 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), "s_1")
+        s_2 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_3}), "s_2")
+        s_3 = SampleGraph(self.builder, frozenset({self.b_1, self.c_1}), frozenset({self.e_4}), "s_3")
+        s_4 = SampleGraph(copy(self.builder), frozenset({self.b_1, self.c_1}), frozenset({self.e_3}), "s_4")
+
+        self.assertTrue(sgb_1.can_sample_be_joined(s_1))
+        self.assertFalse(sgb_1.can_sample_be_joined(s_2))
+        self.assertTrue(sgb_1.can_sample_be_joined(s_3))
+
+        with self.assertRaises(AssertionError):
+            sgb_1.can_sample_be_joined(s_4)
+
+    def test_join_sample(self):
+        sgb_1 = SampleGraphBuilder(self.builder, "b_1", {self.a_1, self.b_1}, {self.e_1})
+        s_1 = SampleGraph(self.builder, frozenset({self.b_1, self.c_1}), frozenset({self.e_2}), "s_1")
+        s_2 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_4}), "s_2")
+
+        js_1 = sgb_1.join_sample(s_1).build()
+
+        self.assertEqual(js_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
+        self.assertEqual(js_1.edges, frozenset({self.e_1, self.e_2}))
+
+        with self.assertRaises(AssertionError):
+            sgb_1.join_sample(s_2)
 
     def test_build(self):
         with self.assertRaises(AssertionError):
@@ -513,25 +547,14 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(s_1.external_nodes({n_a1, n_c1}), {n_b1: {e_abr, e_bcr}, n_d1: {e_cdg}, n_f1: {e_dfg}})
         self.assertEqual(s_1.external_nodes({n_a1}, {"r"}), {n_b1: {e_abr}, n_c1: {e_bcr}})
 
-    def test_variables_subgraph(self):
-        sg_1 = self.s_1.variables_subgraph({"a"})
+    def test_variables_subgraph_hash(self):
         self.assertEqual(
-            (sg_1.nodes, sg_1.edges),
-            (frozenset({self.a_1}), frozenset({})))
-        sg_2 = self.s_1.variables_subgraph({"a", "b"})
+            self.s_1.variables_subgraph_hash({"a"}),
+            frozenset({self.a_1}))
+
         self.assertEqual(
-            (sg_2.nodes, sg_2.edges),
-            (frozenset({self.a_1, self.b_1}), frozenset({self.e_1})))
-
-    def test_can_be_joined(self):
-        e_3 = self.builder.get_edge(frozenset({self.a_1, self.b_1}), "g")
-        s_3 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_1}), "s_3")
-        s_4 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({e_3}), "s_4")
-
-        self.assertTrue(self.s_1.can_be_joined({s_3}))
-        self.assertFalse(self.s_1.can_be_joined({s_4}))
-        self.assertTrue(self.s_2.can_be_joined({s_3}))
-        self.assertTrue(self.s_2.can_be_joined({s_4}))
+            self.s_1.variables_subgraph_hash({"a", "b"}),
+            (frozenset({self.a_1, self.b_1, self.e_1})))
 
 
 class TestSampleSpace(unittest.TestCase):

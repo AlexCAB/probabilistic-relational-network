@@ -138,6 +138,11 @@ class TestRelationGraphBuilder(unittest.TestCase):
         self.assertEqual(g_2.name, "relation_graph_with_1_outcomes")
         self.assertEqual(g_2.number_of_outcomes, 1)
 
+    def test_repr(self):
+        self.assertEqual(
+            str(RelationGraphBuilder(None, None, "b_1", {self.o_1: 5}, self.bcp)),
+            "RelationGraphBuilder(name = b_1, len(outcomes) = 1)")
+
     def test_set_name(self):
         b_1 = RelationGraphBuilder(None, None, "b_1", {self.o_1: 1}, self.bcp).set_name("rg_123").build()
         self.assertEqual(b_1.name, "rg_123")
@@ -376,7 +381,9 @@ class TestRelationGraphBuilder(unittest.TestCase):
 
 class TestRelationGraph(unittest.TestCase):
 
-    bcp = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}}, {"r", "s"})
+    bcp = BuilderComponentsProvider(
+        {"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}, "d": {"4", "5"}},
+        {"r", "s"})
     o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
     rg_1 = RelationGraph(bcp, "rg_1", {o_1: 1, o_2: 2})
@@ -408,9 +415,9 @@ class TestRelationGraph(unittest.TestCase):
                 "name": "rg_1",
                 "number_of_outcomes": 3,
                 "number_of_relations": 2,
-                "number_of_variables": 3,
+                "number_of_variables": 4,
                 "relations": {"r", "s"},
-                "variables": {"a", "b", "c"}})
+                "variables": {"a", "b", "c", "d"}})
 
     def test_inference(self):
         o_1 = SampleGraphBuilder(self.bcp).set_name("o_1")\
@@ -465,53 +472,85 @@ class TestRelationGraph(unittest.TestCase):
             frozenset({(o_5, 5)}))
 
     def test_joined_on_variables(self):
-        o_1 = SampleGraphBuilder(self.bcp).set_name("o_1") \
-            .build_single_node("a", "1")
-        o_2 = SampleGraphBuilder(self.bcp).set_name("o_2") \
-            .add_relation({("a", "1"), ("b", "2")}, "r") \
-            .build()
-        o_3 = SampleGraphBuilder(self.bcp).set_name("o_3") \
-            .add_relation({("b", "2"), ("c", "3")}, "r") \
-            .build()
-        o_4 = SampleGraphBuilder(self.bcp).set_name("o_4") \
+        o_11 = SampleGraphBuilder(self.bcp).set_name("o_11") \
             .add_relation({("a", "1"), ("b", "2")}, "r") \
             .add_relation({("b", "2"), ("c", "3")}, "r") \
             .build()
-        o_5 = SampleGraphBuilder(self.bcp).set_name("o_5") \
-            .add_relation({("a", "1"), ("b", "2")}, "s") \
+        o_12 = SampleGraphBuilder(self.bcp).set_name("o_12") \
             .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .add_relation({("c", "3"), ("d", "4")}, "r") \
             .build()
 
-        rg_1 = RelationGraph(self.bcp, "rg_1", {o_1: 2, o_2: 3, o_3: 4, o_4: 5, o_5: 6})
-        jg_1 = rg_1.joined_on_variables({"a", "jg_1"})
+        rg_1 = RelationGraph(self.bcp, "rg_1", {o_11: 2, o_12: 3})
+        jg_1 = rg_1.joined_on_variables({"b", "c"}, "jg_1")
 
         self.assertEqual(jg_1.name, "jg_1")
         self.assertEqual(
             jg_1.outcomes(), frozenset({
                 (SampleGraphBuilder(self.bcp)
-                 .add_relation({("a", "1"), ("b", "2")}, "s")
+                 .add_relation({("a", "1"), ("b", "2")}, "r")
                  .add_relation({("b", "2"), ("c", "3")}, "r")
-                 .build(), 10),
+                 .add_relation({("c", "3"), ("d", "4")}, "r")
+                 .build(), 6)}))
+
+        o_21 = SampleGraphBuilder(self.bcp).set_name("o_21") \
+            .add_relation({("a", "1"), ("b", "2")}, "s") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_22 = SampleGraphBuilder(self.bcp).set_name("o_22") \
+            .add_relation({("a", "1"), ("b", "2")}, "s") \
+            .build()
+        o_23 = SampleGraphBuilder(self.bcp).set_name("o_23") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_24 = SampleGraphBuilder(self.bcp).set_name("o_24") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .build()
+
+        rg_2 = RelationGraph(self.bcp, "rg_2", {o_21: 2, o_22: 3, o_23: 4, o_24: 5})
+
+        self.assertEqual(
+            rg_2.joined_on_variables({"a", "b"}, "jg_2").outcomes(), frozenset({
                 (SampleGraphBuilder(self.bcp)
                  .add_relation({("a", "1"), ("b", "2")}, "s")
                  .add_relation({("b", "2"), ("c", "3")}, "r")
-                 .build(), 10),
+                 .build(), 6),
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "r")
+                 .add_relation({("b", "2"), ("c", "3")}, "r")
+                 .build(), 20)}))
 
+        o_31 = SampleGraphBuilder(self.bcp).set_name("o_31") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_32 = SampleGraphBuilder(self.bcp).set_name("o_32") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .build()
+        o_33 = SampleGraphBuilder(self.bcp).set_name("o_33") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "s") \
+            .build()
+        o_34 = SampleGraphBuilder(self.bcp).set_name("o_34") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "s") \
+            .add_relation({("c", "3"), ("d", "4")}, "r") \
+            .build()
 
+        rg_3 = RelationGraph(self.bcp, "rg_3", {o_31: 2, o_32: 3, o_33: 4, o_34: 5})
 
-            })
-
-
-
-        )
-
-
-
-
-
-
-
-
+        self.assertEqual(
+            rg_3.joined_on_variables({"a", "b"}, "jg_3").outcomes(), frozenset({
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "r")
+                 .add_relation({("b", "2"), ("c", "3")}, "r")
+                 .build(), 6),
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "r")
+                 .add_relation({("b", "2"), ("c", "3")}, "s")
+                 .add_relation({("c", "3"), ("d", "4")}, "r")
+                 .build(), 20)}))
 
 
 if __name__ == '__main__':

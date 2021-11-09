@@ -23,7 +23,7 @@ from copy import copy
 
 from scripts.relnet.sample_graph import SampleGraphBuilder
 from scripts.relnet.folded_graph import FoldedNode, FoldedEdge
-from scripts.relnet.sample_space import SampleSpace
+from scripts.relnet.sample_space import SampleSpace, SampleSet
 from scripts.test.relnet.test_graph_components import MockSampleGraphComponentsProvider
 
 
@@ -35,17 +35,17 @@ class TestSampleSpace(unittest.TestCase):
     o_3 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
-    ss_1 = SampleSpace(bcp, {o_1: 1, o_2: 2, o_3: 3})
+    ss_1 = SampleSpace(bcp, SampleSet({o_1: 1, o_2: 2, o_3: 3}))
 
     def test_init(self):
-        self.assertEqual(self.ss_1.number_of_outcomes, 6)
+        self.assertEqual(self.ss_1.outcomes.length, 6)
 
     def test_copy(self):
         with self.assertRaises(AssertionError):
             copy(self.ss_1)
 
     def test_outcomes(self):
-        self.assertEqual(self.ss_1.outcomes(), frozenset({(self.o_1, 1),  (self.o_2, 2), (self.o_3, 3)}))
+        self.assertEqual(self.ss_1.outcomes.items(), {(self.o_1, 1),  (self.o_2, 2), (self.o_3, 3)})
 
     def test_outcomes_as_edges_sets(self):
         self.assertEqual(self.ss_1.outcomes_as_edges_sets(), frozenset({

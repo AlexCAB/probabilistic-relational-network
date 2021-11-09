@@ -24,7 +24,7 @@ from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 from .graph_components import SampleGraphComponentsProvider, BuilderComponentsProvider
 from .inference_graph import InferenceGraph
 from .sample_graph import SampleGraph, SampleGraphBuilder
-from .sample_space import SampleSpace
+from .sample_space import SampleSpace, SampleSet, SampleSetBuilder
 
 
 class RelationGraphBuilder:
@@ -37,7 +37,7 @@ class RelationGraphBuilder:
             variables:  Optional[Dict[Any, Set[Any]]] = None,
             relations:  Optional[Set[Any]] = None,
             name: Optional[str] = None,
-            outcomes: Dict[SampleGraph, int] = None,
+            outcomes: SampleSetBuilder = None,
             components_provider: Optional[SampleGraphComponentsProvider] = None,
     ):
         assert (variables and relations) or components_provider, \
@@ -46,14 +46,13 @@ class RelationGraphBuilder:
         self._components_provider = components_provider if components_provider \
             else BuilderComponentsProvider(variables, relations)
         self._name: Optional[str] = name
-        self._outcomes: Dict[SampleGraph, int] = outcomes if outcomes else {}
+        self._outcomes: SampleSetBuilder = outcomes if outcomes else SampleSetBuilder()
         self._id_counter = 0
-
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = self._components_provider.variables()
         self.relations: frozenset[Any] = self._components_provider.relations()
 
     def __repr__(self):
-        return f"RelationGraphBuilder(name = {self._name}, len(outcomes) = {len(self._outcomes)})"
+        return f"RelationGraphBuilder(name = {self._name}, len(outcomes) = {self._outcomes.length()})"
 
     def set_name(self, name: Optional[str]):
         """
@@ -85,10 +84,7 @@ class RelationGraphBuilder:
         assert count >= 1, \
             f"[RelationGraphBuilder.add_outcome] Expect count be >= 1, but got {count}"
 
-        if outcome in self._outcomes:
-            self._outcomes[outcome] += count
-        else:
-            self._outcomes[outcome] = count
+        self._outcomes.add(outcome, count)
         return self
 
     def add_outcomes(self, outcomes: List[SampleGraph], count: int = 1) -> 'RelationGraphBuilder':
@@ -124,7 +120,7 @@ class RelationGraphBuilder:
         """
         assert not self._outcomes, \
             f"[RelationGraphBuilder.generate_all_possible_outcomes] Builder should not have outcomes added, " \
-            f"found {len(self._outcomes)} outcomes"
+            f"found {self._outcomes.length()} outcomes"
 
         indexed_variables = [(var, list(values)) for var, values in self.variables]
         indexed_relations = list(self.relations)
@@ -165,7 +161,7 @@ class RelationGraphBuilder:
         for var, values in indexed_variables:
             self.add_outcomes([
                 outcome.transform_with_replaced_values({var: val}, f"O_{self.next_id()}")
-                for outcome in self._outcomes
+                for outcome in self._outcomes.samples()
                 for val in values[1:]  # Iterate over all value except first
                 if var in outcome.included_variables])
 
@@ -186,7 +182,7 @@ class RelationGraphBuilder:
         return RelationGraph(
             self._components_provider,
             self._name,
-            self._outcomes)
+            self._outcomes.build())
 
 
 class RelationGraph(SampleSpace):
@@ -198,12 +194,12 @@ class RelationGraph(SampleSpace):
             self,
             components_provider: SampleGraphComponentsProvider,
             name: Optional[str],
-            outcomes: Dict[SampleGraph, int]
+            outcomes: SampleSet
     ):
         super().__init__(components_provider, outcomes)
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = components_provider.variables()
         self.relations: frozenset[Any] = components_provider.relations()
-        self.name: str = name if name else f"relation_graph_with_{self.number_of_outcomes}_outcomes"
+        self.name: str = name if name else f"relation_graph_with_{self.outcomes.length}_outcomes"
 
     def __repr__(self):
         return self.name
@@ -217,7 +213,7 @@ class RelationGraph(SampleSpace):
             {var: set(values) for var, values in self.variables},
             set(self.relations),
             self.name,
-            {outcome: count for outcome, count in self._outcomes.items()},
+            self.outcomes.builder(),
             self._components_provider)
 
     def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
@@ -239,18 +235,12 @@ class RelationGraph(SampleSpace):
             "name": self.name,
             "number_of_variables": len(self.variables),
             "number_of_relations": len(self.relations),
-            "number_of_outcomes": self.number_of_outcomes,
+            "number_of_outcomes": self.outcomes.length,
             "variables": {str(v) for v, _ in self.variables},
             "relations": {str(r) for r in self.relations},
         }
 
     def inference(self, evidence: SampleGraph, name: Optional[str] = None) -> InferenceGraph:
-
-        # TODO: 1) Переименовать query на evidence
-        # TODO: 2) Не удалять исходы в которые не входят перменные из евиденса
-        # TODO: 3) joined_on_variables Проверить чтобы разные значения одной перменной не попали в один исход,
-        # TODO:    например рёбра a_t--b_t и a_f--b_f не могут быть обьеденены, та как a_t и a_f попадут в один исход
-
         """
         Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
         and pack in InferenceGraph instance.
@@ -263,18 +253,30 @@ class RelationGraph(SampleSpace):
             f"since it vas created with using another SampleGraphComponentsProvider"
 
         selected_outcomes: Dict[SampleGraph, int] = {
-            outcome: count for outcome, count in self._outcomes.items()
+            outcome: count for outcome, count in self.outcomes.items()
             if evidence.is_subgraph(outcome) or evidence.included_variables.isdisjoint(outcome.included_variables)}
 
         return InferenceGraph(
             self._components_provider,
             evidence,
             name if name else f"inference_of_{self.name}",
-            selected_outcomes)
+            SampleSet(selected_outcomes))
+
+    # TODO 0) Добавить тесты для SampleSet, SampleSetBuilder и использовать их в joined_on_variables
+    # TODO 1) Переместить алгоритм joined_on_variables в SampleSpace (здесь
+    # TODO    оставить только постройку графа отношений), и добав joined_on_variables в InferenceGraph
+    # TODO    чтобы можно было выполнять обьедиение на инференсе
+    # TODO 2) variables агргумент опциональный, если не передан то обьединене на всех
+    # TODO    перменных (т.е. всех исходов)
+    # TODO 3) joined_on_variables Проверить чтобы разные значения одной перменной не попали в один исход,
+    # TODO    например рёбра a_t--b_t и a_f--b_f не могут быть обьеденены, та как a_t и a_f попадут в один исход
 
     def joined_on_variables(self, variables: Set[Any], name: Optional[str] = None) -> 'RelationGraph':
         """
         Will join over all outcomes and return new relation graph with joined outcomes
+        (!) In current implementation joining result are not deterministic, for example if exist
+            outcome (a)-{r}-(b), which can be joined to one of incompatible outcomes (a)-{r}-(b)-{r}-(c)
+            and (a)-{r}-(b)-{s}-(c), it will be joined to one of randomly.
         :param variables: set of variables to join on
         :param name: optional name for the joined graph
         :return: new relation graph with joined outcomes
@@ -282,7 +284,7 @@ class RelationGraph(SampleSpace):
         outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}
         rel_graph_builder = RelationGraphBuilder(name=name, components_provider=self._components_provider)
 
-        for outcome, count in self._outcomes.items():
+        for outcome, count in self.outcomes.items():
             if variables.issubset(outcome.included_variables):  # If have all variables included
                 outcome_hash = outcome.variables_subgraph_hash(variables)
                 if outcome_hash in outcomes_acc:

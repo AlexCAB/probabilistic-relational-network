@@ -23,7 +23,7 @@ from typing import Dict, Any, Set, Optional
 from .activation_graph import ActivationGraph, ActiveNode, ActiveEdge
 from .graph_components import SampleGraphComponentsProvider
 from .sample_graph import SampleGraph
-from .sample_space import SampleSpace
+from .sample_space import SampleSpace, SampleSet
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -40,12 +40,11 @@ class InferenceGraph(SampleSpace):
             components_provider: SampleGraphComponentsProvider,
             evidence: SampleGraph,
             name: str,
-            outcomes: Dict[SampleGraph, int]
+            outcomes: SampleSet
     ):
         super().__init__(components_provider, outcomes)
         self.evidence: SampleGraph = evidence
         self.name: str = name
-        self._outcomes: Dict[SampleGraph, int] = outcomes
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __repr__(self):
@@ -61,7 +60,7 @@ class InferenceGraph(SampleSpace):
             None,
             None,
             None,
-            {outcome: count for outcome, count in self._outcomes.items()},
+            self.outcomes.builder(),
             self._components_provider)
 
     def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
@@ -81,7 +80,7 @@ class InferenceGraph(SampleSpace):
         """
         return {
             "query": self.evidence.text_view(),
-            "number_outcomes": self.number_of_outcomes,
+            "number_outcomes": self.outcomes.length,
             "included_variables": {str(v) for v, _ in self.included_variables()},
             "included_relations": {str(r) for r in self.included_relations()},
         }
@@ -102,7 +101,7 @@ class InferenceGraph(SampleSpace):
 
         grouped_relations: Dict[frozenset[Any], (Dict[Any, int], bool)] = {}
 
-        for outcome, count in self._outcomes.items():
+        for outcome, count in self.outcomes.items():
             similarity = outcome.similarity(self.evidence)
             external_nodes = outcome.external_nodes(set(self.evidence.nodes), relation_filter)
             out_query_nodes = {node: (similarity * count, False) for node in external_nodes.keys()}
@@ -135,8 +134,8 @@ class InferenceGraph(SampleSpace):
 
         return ActivationGraph(
             self._components_provider,
-            self.number_of_outcomes,
-            {ActiveNode(var, {v: w / self.number_of_outcomes for v, w in values.items()}, in_query)
+            self.outcomes.length,
+            {ActiveNode(var, {v: w / self.outcomes.length for v, w in values.items()}, in_query)
              for var, (values, in_query) in grouped_values.items()},
             {ActiveEdge(set(endpoints), relations, in_query)
              for endpoints, (relations, in_query) in grouped_relations.items()},

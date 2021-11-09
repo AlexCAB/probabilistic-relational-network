@@ -20,11 +20,9 @@ created: 2021-10-29
 
 from typing import Any, Dict, Set, Optional
 from pyvis.network import Network
-from scripts.relnet.variables_graph import VariableNode, VariableEdge, VariablesGraph
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphComponentsProvider
+from .graph_components import ValueNode, RelationEdge, SampleGraphComponentsProvider
+from .variables_graph import VariableNode, VariableEdge, VariablesGraph
 
 
 class FoldedNode(VariableNode):
@@ -32,11 +30,11 @@ class FoldedNode(VariableNode):
     Immutable node which contain all variable values
     """
 
-    def __init__(self, variable: Any, values: Set[Any], value_nodes: Dict['ValueNode', int], number_of_outcomes: int):
+    def __init__(self, variable: Any, values: Set[Any], value_nodes: Dict[ValueNode, int], number_of_outcomes: int):
         super().__init__(variable)
         self.values: frozenset[Any] = frozenset(values)
-        self.value_nodes: frozenset[('ValueNode', int)] = frozenset(value_nodes.items())
-        self._value_nodes_dict: Dict['ValueNode', int] = value_nodes
+        self.value_nodes: frozenset[(ValueNode, int)] = frozenset(value_nodes.items())
+        self._value_nodes_dict: Dict[ValueNode, int] = value_nodes
         self._number_of_outcomes: int = number_of_outcomes
 
     def __repr__(self):
@@ -88,10 +86,10 @@ class FoldedEdge(VariableEdge):
     Immutable edge which contain all relation in between variables
     """
 
-    def __init__(self, endpoints: Set[Any], relation_edges: Dict['RelationEdge', int]):
+    def __init__(self, endpoints: Set[Any], relation_edges: Dict[RelationEdge, int]):
         super().__init__(endpoints)
-        self.relation_edges: frozenset[('ValueNode', int)] = frozenset(relation_edges.items())
-        self._relation_edges_dict: Dict['RelationEdge', int] = relation_edges
+        self.relation_edges: frozenset[(ValueNode, int)] = frozenset(relation_edges.items())
+        self._relation_edges_dict: Dict[RelationEdge, int] = relation_edges
 
     def __repr__(self):
         ep = sorted(self.endpoints)
@@ -114,7 +112,7 @@ class FoldedGraph(VariablesGraph):
 
     def __init__(
             self,
-            components_provider: 'SampleGraphComponentsProvider',
+            components_provider: SampleGraphComponentsProvider,
             number_of_outcomes: int,
             nodes: Set[FoldedNode],
             edges: Set[FoldedEdge],

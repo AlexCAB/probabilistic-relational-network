@@ -19,100 +19,9 @@ created: 2021-10-26
 """
 
 import unittest
-from copy import copy
 
 from scripts.relnet.relation_graph import BuilderComponentsProvider, RelationGraphBuilder, RelationGraph
-from scripts.relnet.sample_graph import ValueNode, SampleGraphBuilder, DirectedRelation
-
-
-class TestBuilderComponentsProvider(unittest.TestCase):
-
-    b_1 = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}}, {"r", "s"})
-
-    def test_init(self):
-        b = BuilderComponentsProvider({"a": {"1", "2"}}, {"r"})
-
-        self.assertEqual(b.variables(), frozenset({("a", frozenset({"1", "2"}))}))
-        self.assertEqual(b.relations(), frozenset({"r"}))
-        self.assertEqual(b.nodes, {})
-        self.assertEqual(b.edges, {})
-
-        with self.assertRaises(AssertionError):  # Empty set of variables
-            BuilderComponentsProvider({}, {"r"})
-        with self.assertRaises(AssertionError):  # Empty variable values
-            BuilderComponentsProvider({"a": set({})}, {"r"})
-        with self.assertRaises(AssertionError):  # Empty set of relations
-            BuilderComponentsProvider({"a": {"1", "2"}}, set({}))
-
-    def test_variables(self):
-        self.assertEqual(
-            self.b_1.variables(),
-            frozenset({("a", frozenset({"1", "2"})), ("b", frozenset({"2", "3"}))}))
-
-    def test_relations(self):
-        self.assertEqual(self.b_1.relations(), frozenset({"r", "s"}))
-
-    def test_get_node(self):
-        n_1 = self.b_1.get_node("a", "1")
-        self.assertEqual(n_1.variable, "a")
-        self.assertEqual(n_1.value, "1")
-
-        n_2 = self.b_1.get_node("a", "1")
-        self.assertEqual(n_2.variable, "a")
-        self.assertEqual(n_2.value, "1")
-        self.assertEqual(id(n_1), id(n_2))
-
-        n_3 = self.b_1.get_node("a", "2")
-        self.assertEqual(n_3.variable, "a")
-        self.assertEqual(n_3.value, "2")
-        self.assertNotEqual(id(n_1), id(n_3))
-
-        with self.assertRaises(AssertionError):  # Unknown variable
-            self.b_1.get_node("unknown_variable", "1")
-        with self.assertRaises(AssertionError):  # Unknown value
-            self.b_1.get_node("a", "unknown_value")
-
-    def test_get_edge(self):
-        n_1 = self.b_1.get_node("a", "1")
-        n_2 = self.b_1.get_node("b", "2")
-
-        e_1 = self.b_1.get_edge(frozenset({n_1, n_2}), "r")
-        self.assertEqual(e_1.endpoints, frozenset({n_1, n_2}))
-        self.assertEqual(e_1.relation, "r")
-
-        e_2 = self.b_1.get_edge(frozenset({n_1, n_2}), "r")
-        self.assertEqual(e_2.endpoints, frozenset({n_1, n_2}))
-        self.assertEqual(e_2.relation, "r")
-        self.assertEqual(id(e_1), id(e_2))
-
-        e_3 = self.b_1.get_edge(frozenset({n_1, n_2}), "s")
-        self.assertEqual(e_3.endpoints, frozenset({n_1, n_2}))
-        self.assertEqual(e_3.relation, "s")
-        self.assertNotEqual(id(e_1), id(e_3))
-
-        n_3 = self.b_1.get_node("b", "3")
-
-        e_4 = self.b_1.get_edge(frozenset({n_1, n_3}), "r")
-        self.assertEqual(e_4.endpoints, frozenset({n_1, n_3}))
-        self.assertEqual(e_4.relation, "r")
-        self.assertNotEqual(id(e_1), id(e_4))
-
-        dr_1 = DirectedRelation("a", "b", "r")
-        e_5 = self.b_1.get_edge(frozenset({n_1, n_2}), dr_1)
-        self.assertEqual(e_5.endpoints, frozenset({n_1, n_2}))
-        self.assertEqual(e_5.relation, dr_1)
-        self.assertNotEqual(id(e_1), id(e_5))
-
-        with self.assertRaises(AssertionError):  # Unknown endpoint node
-            self.b_1.get_edge(frozenset({n_1, ValueNode("a", "2")}), "r")
-        with self.assertRaises(AssertionError):  # Unknown relation
-            self.b_1.get_edge(frozenset({n_1, n_2}), "unknown_relation")
-        with self.assertRaises(AssertionError):  # Unknown directed relation
-            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("a", "b", "unknown_relation"))
-        with self.assertRaises(AssertionError):  # Unknown directed source variable
-            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("unknown_variable", "b", "r"))
-        with self.assertRaises(AssertionError):  # Unknown directed target variable
-            self.b_1.get_edge(frozenset({n_1, n_2}),  DirectedRelation("a", "unknown_variable", "r"))
+from scripts.relnet.sample_graph import SampleGraphBuilder
 
 
 class TestRelationGraphBuilder(unittest.TestCase):
@@ -457,7 +366,7 @@ class TestRelationGraph(unittest.TestCase):
 
         self.assertEqual(
             ig_1.outcomes(),
-            frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4)}))
+            frozenset({(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4), (o_5, 5)}))
 
         self.assertEqual(
             rg_1.inference(q_2).outcomes(),
@@ -469,7 +378,7 @@ class TestRelationGraph(unittest.TestCase):
 
         self.assertEqual(
             rg_1.inference(q_4).outcomes(),
-            frozenset({(o_5, 5)}))
+            frozenset({(o_5, 5), (o_1, 1)}))
 
     def test_joined_on_variables(self):
         o_11 = SampleGraphBuilder(self.bcp).set_name("o_11") \
@@ -491,7 +400,8 @@ class TestRelationGraph(unittest.TestCase):
                  .add_relation({("a", "1"), ("b", "2")}, "r")
                  .add_relation({("b", "2"), ("c", "3")}, "r")
                  .add_relation({("c", "3"), ("d", "4")}, "r")
-                 .build(), 6)}))
+                 .build(), 6)
+            }))
 
         o_21 = SampleGraphBuilder(self.bcp).set_name("o_21") \
             .add_relation({("a", "1"), ("b", "2")}, "s") \
@@ -519,7 +429,8 @@ class TestRelationGraph(unittest.TestCase):
                 (SampleGraphBuilder(self.bcp)
                  .add_relation({("a", "1"), ("b", "2")}, "r")
                  .add_relation({("b", "2"), ("c", "3")}, "r")
-                 .build(), 20)}))
+                 .build(), 20)
+            }))
 
         o_31 = SampleGraphBuilder(self.bcp).set_name("o_31") \
             .add_relation({("a", "1"), ("b", "2")}, "r") \
@@ -550,7 +461,8 @@ class TestRelationGraph(unittest.TestCase):
                  .add_relation({("a", "1"), ("b", "2")}, "r")
                  .add_relation({("b", "2"), ("c", "3")}, "s")
                  .add_relation({("c", "3"), ("d", "4")}, "r")
-                 .build(), 20)}))
+                 .build(), 20)
+            }))
 
 
 if __name__ == '__main__':

@@ -21,9 +21,8 @@ created: 2021-11-01
 from typing import Any, Set
 
 from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from scripts.relnet.sample_graph import SampleGraphComponentsProvider
+    from .sample_graph import SampleGraphComponentsProvider
 
 
 class VariableNode:

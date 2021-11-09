@@ -20,11 +20,9 @@ created: 2021-11-01
 
 from typing import Any, Dict, Set, Optional
 from pyvis.network import Network
-from scripts.relnet.variables_graph import VariableNode, VariableEdge, VariablesGraph
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from scripts.relnet.sample_graph import ValueNode, RelationEdge, SampleGraphComponentsProvider
+from .variables_graph import VariableNode, VariableEdge, VariablesGraph
+from .graph_components import SampleGraphComponentsProvider
 
 
 class ActiveNode(VariableNode):
@@ -87,7 +85,7 @@ class ActivationGraph(VariablesGraph):
 
     def __init__(
             self,
-            components_provider: 'SampleGraphComponentsProvider',
+            components_provider: SampleGraphComponentsProvider,
             number_of_outcomes: int,
             nodes: Set[ActiveNode],
             edges: Set[ActiveEdge],

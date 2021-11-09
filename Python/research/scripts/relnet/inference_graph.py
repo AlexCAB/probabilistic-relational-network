@@ -20,13 +20,14 @@ created: 2021-08-09
 
 from typing import Dict, Any, Set, Optional
 
-from scripts.relnet.activation_graph import ActivationGraph, ActiveNode, ActiveEdge
-from scripts.relnet.sample_graph import \
-    SampleGraph, SampleGraphComponentsProvider, SampleSpace
+from .activation_graph import ActivationGraph, ActiveNode, ActiveEdge
+from .graph_components import SampleGraphComponentsProvider
+from .sample_graph import SampleGraph
+from .sample_space import SampleSpace
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from scripts.relnet.relation_graph import RelationGraphBuilder
+    from .relation_graph import RelationGraphBuilder
 
 
 class InferenceGraph(SampleSpace):
@@ -37,12 +38,12 @@ class InferenceGraph(SampleSpace):
     def __init__(
             self,
             components_provider: SampleGraphComponentsProvider,
-            query: SampleGraph,
+            evidence: SampleGraph,
             name: str,
             outcomes: Dict[SampleGraph, int]
     ):
         super().__init__(components_provider, outcomes)
-        self.query: SampleGraph = query
+        self.evidence: SampleGraph = evidence
         self.name: str = name
         self._outcomes: Dict[SampleGraph, int] = outcomes
         self._components_provider: SampleGraphComponentsProvider = components_provider
@@ -71,7 +72,7 @@ class InferenceGraph(SampleSpace):
         :param width: window width
         :return: None
         """
-        self._visualize_outcomes(name if name else self.name, height, width, self.query)
+        self._visualize_outcomes(name if name else self.name, height, width, self.evidence)
 
     def describe(self) -> Dict[str, Any]:
         """
@@ -79,7 +80,7 @@ class InferenceGraph(SampleSpace):
         :return: Dict[property_name, property_value]
         """
         return {
-            "query": self.query.text_view(),
+            "query": self.evidence.text_view(),
             "number_outcomes": self.number_of_outcomes,
             "included_variables": {str(v) for v, _ in self.included_variables()},
             "included_relations": {str(r) for r in self.included_relations()},
@@ -96,18 +97,18 @@ class InferenceGraph(SampleSpace):
         :return ActivationGraph: activation graph:
         """
         grouped_values: Dict[Any, (Dict[Any, float], bool)] = {
-            var: ({val: 0.0 for val in values}, var in self.query.included_variables)
+            var: ({val: 0.0 for val in values}, var in self.evidence.included_variables)
             for var, values in self._components_provider.variables()}
 
         grouped_relations: Dict[frozenset[Any], (Dict[Any, int], bool)] = {}
 
         for outcome, count in self._outcomes.items():
-            similarity = outcome.similarity(self.query)
-            external_nodes = outcome.external_nodes(set(self.query.nodes), relation_filter)
+            similarity = outcome.similarity(self.evidence)
+            external_nodes = outcome.external_nodes(set(self.evidence.nodes), relation_filter)
             out_query_nodes = {node: (similarity * count, False) for node in external_nodes.keys()}
-            in_query_nodes = {node: (1.0 * count, True) for node in self.query.nodes.intersection(outcome.nodes)}
+            in_query_nodes = {node: (1.0 * count, True) for node in self.evidence.nodes.intersection(outcome.nodes)}
             out_query_edges = {(edge, False) for rel_edges in external_nodes.values() for edge in rel_edges}
-            in_query_edges = {(edge, True) for edge in self.query.edges}
+            in_query_edges = {(edge, True) for edge in self.evidence.edges}
 
             assert out_query_nodes.keys().isdisjoint(in_query_nodes.keys()), \
                 f"[InferenceGraph.active_values] out_query_nodes and in_query_nodes should not intersect, seems a bug"

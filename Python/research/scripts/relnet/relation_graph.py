@@ -21,71 +21,10 @@ created: 2021-08-09
 from math import prod
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
+from .graph_components import SampleGraphComponentsProvider, BuilderComponentsProvider
 from .inference_graph import InferenceGraph
-from .sample_graph import SampleGraph, ValueNode, RelationEdge, SampleGraphBuilder, SampleGraphComponentsProvider, \
-    SampleSpace, DirectedRelation
-
-
-class BuilderComponentsProvider(SampleGraphComponentsProvider):
-    """
-    Implementation of sample graph components provider
-    """
-
-    def __init__(self, variables: Dict[Any, Set[Any]], relations: Set[Any]):
-        assert variables, \
-            f"[BuilderComponentsProvider.__init__] Set of variables should not be empty."
-        for var, values in variables.items():
-            assert values, \
-                f"[BuilderComponentsProvider.__init__] Set of variable values should not be empty, found for {var}"
-        assert relations, \
-            f"[BuilderComponentsProvider.__init__] Set of relations should not be empty."
-
-        self._variables: Dict[Any, Set[Any]] = variables
-        self._relations: Set[Any] = relations
-        self.nodes: Dict[Tuple[Any, Any], ValueNode] = {}
-        self.edges: Dict[Tuple[frozenset[ValueNode], Any], RelationEdge] = {}
-
-    def variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
-        return frozenset({(k, frozenset(v)) for k, v in self._variables.items()})
-
-    def relations(self) -> frozenset[Any]:
-        return frozenset(self._relations)
-
-    def get_node(self, variable: Any, value: Any) -> ValueNode:
-        assert variable in self._variables, \
-            f"[BuilderComponentsProvider.get_node] Unknown variable {variable}"
-        assert value in self._variables[variable], \
-            f"[BuilderComponentsProvider.get_node] Unknown value {value} of variable {variable}"
-
-        if (variable, value) in self.nodes:
-            return self.nodes[(variable, value)]
-        else:
-            node = ValueNode(variable, value)
-            self.nodes[(variable, value)] = node
-            return node
-
-    def get_edge(self, endpoints: frozenset[ValueNode], relation: Any) -> RelationEdge:
-        assert endpoints.issubset(self.nodes.values()), \
-            f"[BuilderComponentsProvider.get_edge] Endpoints nodes should be created first, " \
-            f"got {endpoints} where nodes {self.nodes}"
-        assert (relation.relation if isinstance(relation, DirectedRelation) else relation) in self._relations, \
-            f"[BuilderComponentsProvider.get_node] Unknown relation {relation}"
-
-        if isinstance(relation, DirectedRelation):
-            variables = {ep.variable for ep in endpoints}
-            assert relation.source_variable in variables, \
-                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation source " \
-                f"variable {relation.source_variable}"
-            assert relation.target_variable in variables, \
-                f"[MockSampleGraphComponentsProvider.get_node] Unknown relation target " \
-                f"variable {relation.target_variable}"
-
-        if (endpoints, relation) in self.edges:
-            return self.edges[(endpoints, relation)]
-        else:
-            edge = RelationEdge(endpoints, relation)
-            self.edges[(endpoints, relation)] = edge
-            return edge
+from .sample_graph import SampleGraph, SampleGraphBuilder
+from .sample_space import SampleSpace
 
 
 class RelationGraphBuilder:
@@ -305,24 +244,31 @@ class RelationGraph(SampleSpace):
             "relations": {str(r) for r in self.relations},
         }
 
-    def inference(self, query: SampleGraph, name: Optional[str] = None) -> InferenceGraph:
+    def inference(self, evidence: SampleGraph, name: Optional[str] = None) -> InferenceGraph:
+
+        # TODO: 1) Переименовать query на evidence
+        # TODO: 2) Не удалять исходы в которые не входят перменные из евиденса
+        # TODO: 3) joined_on_variables Проверить чтобы разные значения одной перменной не попали в один исход,
+        # TODO:    например рёбра a_t--b_t и a_f--b_f не могут быть обьеденены, та как a_t и a_f попадут в один исход
+
         """
         Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
         and pack in InferenceGraph instance.
-        :param query: and SampleGraph to filter on
+        :param evidence: and SampleGraph to filter on
         :param name: optional name for the inference graph
         :return: new instance of InferenceGraph
         """
-        assert query.is_compatible(self._components_provider), \
-            f"[RelationGraphBuilder.add_outcome] Query {query} is not compatible with this relation graph, " \
+        assert evidence.is_compatible(self._components_provider), \
+            f"[RelationGraphBuilder.add_outcome] Evidence {evidence} is not compatible with this relation graph, " \
             f"since it vas created with using another SampleGraphComponentsProvider"
 
         selected_outcomes: Dict[SampleGraph, int] = {
-            outcome: count for outcome, count in self._outcomes.items() if query.is_subgraph(outcome)}
+            outcome: count for outcome, count in self._outcomes.items()
+            if evidence.is_subgraph(outcome) or evidence.included_variables.isdisjoint(outcome.included_variables)}
 
         return InferenceGraph(
             self._components_provider,
-            query,
+            evidence,
             name if name else f"inference_of_{self.name}",
             selected_outcomes)
 

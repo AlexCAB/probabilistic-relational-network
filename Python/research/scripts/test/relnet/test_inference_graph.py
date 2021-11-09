@@ -37,7 +37,7 @@ class TestInferenceGraph(unittest.TestCase):
     ig_1 = InferenceGraph(bcp, s_1, "ig_1", {s_1: 1, s_2: 2})
 
     def test_init(self):
-        self.assertEqual(self.ig_1.query, self.s_1)
+        self.assertEqual(self.ig_1.evidence, self.s_1)
         self.assertEqual(self.ig_1.number_of_outcomes, 3)
 
     def test_repr(self):

@@ -81,6 +81,9 @@ class SampleSetBuilder(Samples):
     ):
         super(SampleSetBuilder, self).__init__(samples if samples else {})
 
+    def __repr__(self):
+        return f"SampleSetBuilder(length = {self.length()})"
+
     def add(self, sample: SampleGraph, count: int) -> None:
         if sample in self._samples:
             self._samples[sample] += count

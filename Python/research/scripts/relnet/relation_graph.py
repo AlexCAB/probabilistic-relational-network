@@ -268,8 +268,7 @@ class RelationGraph(SampleSpace):
     # TODO    чтобы можно было выполнять обьедиение на инференсе
     # TODO 2) variables агргумент опциональный, если не передан то обьединене на всех
     # TODO    перменных (т.е. всех исходов)
-    # TODO 3) joined_on_variables Проверить чтобы разные значения одной перменной не попали в один исход,
-    # TODO    например рёбра a_t--b_t и a_f--b_f не могут быть обьеденены, та как a_t и a_f попадут в один исход
+    # TODO 3) joined_on_variables переписать в соответствии с новым алгоримом.
 
     def joined_on_variables(self, variables: Set[Any], name: Optional[str] = None) -> 'RelationGraph':
         """

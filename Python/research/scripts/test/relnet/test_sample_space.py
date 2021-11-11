@@ -23,8 +23,78 @@ from copy import copy
 
 from scripts.relnet.sample_graph import SampleGraphBuilder
 from scripts.relnet.folded_graph import FoldedNode, FoldedEdge
-from scripts.relnet.sample_space import SampleSpace, SampleSet
+from scripts.relnet.sample_space import SampleSpace, SampleSet, Samples, SampleSetBuilder
 from scripts.test.relnet.test_graph_components import MockSampleGraphComponentsProvider
+
+
+class TestSamples(unittest.TestCase):
+
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
+    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    s_1 = Samples({o_1: 1, o_2: 2})
+
+    def test_bool(self):
+        self.assertTrue(self.s_1)
+        self.assertFalse(Samples({}))
+
+    def test_items(self):
+        self.assertEqual(self.s_1.items(), {(self.o_1, 1), (self.o_2, 2)})
+
+    def test_samples(self):
+        self.assertEqual(self.s_1.samples(), {self.o_1, self.o_2})
+
+
+class TestSampleSet(unittest.TestCase):
+
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
+    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    ss_1 = SampleSet({o_1: 1, o_2: 2})
+
+    def test_init(self):
+        self.assertEqual(self.ss_1.items(), {(self.o_1, 1), (self.o_2, 2)})
+        self.assertEqual(self.ss_1.length, 3)
+
+    def test_len(self):
+        self.assertEqual(len(self.ss_1), 3)
+
+    def test_repr(self):
+        self.assertEqual(str(self.ss_1), "SampleSet(length = 3)")
+
+    def test_builder(self):
+        b_1 = self.ss_1.builder()
+        self.assertTrue(isinstance(b_1, SampleSetBuilder))
+        self.assertEqual(b_1.items(), {(self.o_1, 1), (self.o_2, 2)})
+
+
+class TestSampleSetBuilder(unittest.TestCase):
+
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
+    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    sb_1 = SampleSetBuilder({o_1: 1, o_2: 2})
+
+    def test_init(self):
+        self.assertEqual(self.sb_1.items(), {(self.o_1, 1), (self.o_2, 2)})
+
+    def test_repr(self):
+        self.assertEqual(str(self.sb_1), "SampleSetBuilder(length = 3)")
+
+    def test_add(self):
+        sb_2 = SampleSetBuilder()
+        sb_2.add(self.o_1, 10)
+        sb_2.add(self.o_1, 20)
+        sb_2.add(self.o_2, 40)
+        self.assertEqual(sb_2.items(), {(self.o_1, 30), (self.o_2, 40)})
+
+    def test_length(self):
+        self.assertEqual(self.sb_1.length(), 3)
+
+    def test_build(self):
+        bs_1 = self.sb_1.build()
+        self.assertTrue(isinstance(bs_1, SampleSet))
+        self.assertEqual(bs_1.items(), {(self.o_1, 1), (self.o_2, 2)})
 
 
 class TestSampleSpace(unittest.TestCase):

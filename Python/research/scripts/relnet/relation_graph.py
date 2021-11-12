@@ -196,10 +196,10 @@ class RelationGraph(SampleSpace):
             name: Optional[str],
             outcomes: SampleSet
     ):
-        super().__init__(components_provider, outcomes)
+        self.name: str = name if name else f"relation_graph_with_{outcomes.length}_outcomes"
+        super().__init__(components_provider, outcomes, self.name)
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = components_provider.variables()
         self.relations: frozenset[Any] = components_provider.relations()
-        self.name: str = name if name else f"relation_graph_with_{self.outcomes.length}_outcomes"
 
     def __repr__(self):
         return self.name
@@ -215,16 +215,6 @@ class RelationGraph(SampleSpace):
             self.name,
             self.outcomes.builder(),
             self._components_provider)
-
-    def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
-        """
-        Will render all outcomes as HTML page and show in browser
-        :param height: window height
-        :param width: window width
-        :param name: optional name of this visualization, if None then self.name will passed
-        :return: None
-        """
-        self._visualize_outcomes(name if name else self.name, height, width, None)
 
     def describe(self) -> Dict[str, Any]:
         """
@@ -262,48 +252,14 @@ class RelationGraph(SampleSpace):
             name if name else f"inference_of_{self.name}",
             SampleSet(selected_outcomes))
 
-    # TODO 0) Добавить тесты для SampleSet, SampleSetBuilder и использовать их в joined_on_variables
-    # TODO 1) Переместить алгоритм joined_on_variables в SampleSpace (здесь
-    # TODO    оставить только постройку графа отношений), и добав joined_on_variables в InferenceGraph
-    # TODO    чтобы можно было выполнять обьедиение на инференсе
-    # TODO 2) variables агргумент опциональный, если не передан то обьединене на всех
-    # TODO    перменных (т.е. всех исходов)
-    # TODO 3) joined_on_variables переписать в соответствии с новым алгоримом.
-
-    def joined_on_variables(self, variables: Set[Any], name: Optional[str] = None) -> 'RelationGraph':
+    def joined_on_variables(self, variables: Optional[Set[Any]], name: Optional[str] = None) -> 'RelationGraph':
         """
         Will join over all outcomes and return new relation graph with joined outcomes
-        (!) In current implementation joining result are not deterministic, for example if exist
-            outcome (a)-{r}-(b), which can be joined to one of incompatible outcomes (a)-{r}-(b)-{r}-(c)
-            and (a)-{r}-(b)-{s}-(c), it will be joined to one of randomly.
-        :param variables: set of variables to join on
+        :param variables: set of variables to join on, if None will join on all variables
         :param name: optional name for the joined graph
         :return: new relation graph with joined outcomes
         """
-        outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}
-        rel_graph_builder = RelationGraphBuilder(name=name, components_provider=self._components_provider)
-
-        for outcome, count in self.outcomes.items():
-            if variables.issubset(outcome.included_variables):  # If have all variables included
-                outcome_hash = outcome.variables_subgraph_hash(variables)
-                if outcome_hash in outcomes_acc:
-                    i = 0
-                    while 0 <= i < len(outcomes_acc[outcome_hash]):
-                        sample_builder, count_acc = outcomes_acc[outcome_hash][i]
-                        if sample_builder.can_sample_be_joined(outcome):  # Add to one of exist groups
-                            sample_builder.join_sample(outcome)
-                            count_acc.append(count)
-                            i = -1
-                        else:
-                            i += 1
-                    if i >= 0:  # Add to new group
-                        outcomes_acc[outcome_hash].append((outcome.builder().set_name(None), [count]))
-                else:
-                    outcomes_acc[outcome_hash] = [(outcome.builder().set_name(None), [count])]
-            else:
-                rel_graph_builder.add_outcome(outcome, count)
-        for _, sample_builders in outcomes_acc.items():
-            for sample_builder, counts in sample_builders:
-                rel_graph_builder.add_outcome(sample_builder.build(), prod(counts))
-
-        return rel_graph_builder.build()
+        return RelationGraph(
+            self._components_provider,
+            name if name else self.name,
+            self.join_outcomes_on_variable_set(variables))

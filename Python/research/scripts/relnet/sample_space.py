@@ -63,11 +63,22 @@ class SampleSet(Samples):
     def __len__(self) -> int:
         return self.length
 
+    def __eq__(self, other: Any):
+        if isinstance(other, SampleSet):
+            return self._samples == other._samples
+        return False
+
     def __repr__(self):
         return f"SampleSet(length = {self.length})"
 
     def builder(self) -> 'SampleSetBuilder':
         return SampleSetBuilder({o: c for o, c in self._samples.items()})
+
+    def union(self, other: 'SampleSet'):
+        builder = self.builder()
+        for s, c in other.items():
+            builder.add(s, c)
+        return builder.build()
 
 
 class SampleSetBuilder(Samples):
@@ -106,9 +117,13 @@ class SampleSpace:
     def __init__(
             self,
             components_provider: SampleGraphComponentsProvider,
-            outcomes: SampleSet
+            outcomes: SampleSet,
+            name: Optional[str] = None,
+            evidence: Optional[SampleGraph] = None
     ):
         self._components_provider: SampleGraphComponentsProvider = components_provider
+        self._name: Optional[str] = name
+        self._evidence: Optional[SampleGraph] = evidence
         self.outcomes: SampleSet = outcomes
 
     def __copy__(self):
@@ -194,9 +209,15 @@ class SampleSpace:
             {FoldedEdge(set(endpoints), edges) for endpoints, edges in edge_acc.items()},
             name if name else f"VariablesGraph(len(nodes) = {len(node_acc)}, len(edges) = {len(edge_acc)})")
 
-    def _visualize_outcomes(self, name: str, height: str, width: str, query: Optional[SampleGraph]):
-        assert name, f"[SampleSpace._visualize_outcomes] The name should be passed"
-        file_name = "".join(c for c in name if c.isalnum() or c == '_')
+    def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px"):
+        """
+        Will render all outcomes as HTML page and show in browser
+        :param height: window height
+        :param width: window width
+        :param name: optional name of this visualization, if None then self.name will passed
+        :return: None
+        """
+        file_name = "".join(c for c in (name if name else self._name) if c.isalnum() or c == '_')
         net = Network(height=height, width=width)
 
         for i, (outcome, count) in enumerate(self.outcomes.items()):
@@ -211,13 +232,48 @@ class SampleSpace:
                 ep = list(edge.endpoints)
                 net.add_edge(ep[0].string_id + str(i), ep[1].string_id + str(i), label=str(edge.relation))
 
-        if query:
-            for node in query.nodes:
+        if self._evidence:
+            for node in  self._evidence.nodes:
                 net.add_node(node.string_id + "_query", label=node.string_id, color="red")
 
-            for edge in query.edges:
+            for edge in  self._evidence.edges:
                 ep = list(edge.endpoints)
                 net.add_edge(
                     ep[0].string_id + "_query", ep[1].string_id + "_query", label=str(edge.relation), color="red")
 
         net.show(f"{file_name}.html")
+
+    def join_outcomes_on_variable_set(self, variables:  Optional[Set[Any]] = None) -> SampleSet:
+        """
+        Will join over all outcomes
+        :param variables: set of variables to join on, if None will join on all variables
+        :return: SampleSet of joined outcomes
+        """
+        pass
+
+        # outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}
+        # rel_graph_builder = RelationGraphBuilder(name=name, components_provider=self._components_provider)
+        #
+        # for outcome, count in self.outcomes.items():
+        #     if variables.issubset(outcome.included_variables):  # If have all variables included
+        #         outcome_hash = outcome.variables_subgraph_hash(variables)
+        #         if outcome_hash in outcomes_acc:
+        #             i = 0
+        #             while 0 <= i < len(outcomes_acc[outcome_hash]):
+        #                 sample_builder, count_acc = outcomes_acc[outcome_hash][i]
+        #                 if sample_builder.can_sample_be_joined(outcome):  # Add to one of exist groups
+        #                     sample_builder.join_sample(outcome)
+        #                     count_acc.append(count)
+        #                     i = -1
+        #                 else:
+        #                     i += 1
+        #             if i >= 0:  # Add to new group
+        #                 outcomes_acc[outcome_hash].append((outcome.builder().set_name(None), [count]))
+        #         else:
+        #             outcomes_acc[outcome_hash] = [(outcome.builder().set_name(None), [count])]
+        #     else:
+        #         rel_graph_builder.add_outcome(outcome, count)
+        # for _, sample_builders in outcomes_acc.items():
+        #     for sample_builder, counts in sample_builders:
+        #         rel_graph_builder.add_outcome(sample_builder.build(), prod(counts))
+

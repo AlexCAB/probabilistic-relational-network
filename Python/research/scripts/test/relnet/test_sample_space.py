@@ -20,6 +20,7 @@ created: 2021-11-09
 
 import unittest
 from copy import copy
+from typing import List, Tuple, Set, Dict
 
 from scripts.relnet.sample_graph import SampleGraphBuilder
 from scripts.relnet.folded_graph import FoldedNode, FoldedEdge
@@ -30,8 +31,8 @@ from scripts.test.relnet.test_graph_components import MockSampleGraphComponentsP
 class TestSamples(unittest.TestCase):
 
     bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
-    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
-    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     s_1 = Samples({o_1: 1, o_2: 2})
 
     def test_bool(self):
@@ -47,9 +48,9 @@ class TestSamples(unittest.TestCase):
 
 class TestSampleSet(unittest.TestCase):
 
-    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
-    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
-    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2", "3"}}, {"r"})
+    o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     ss_1 = SampleSet({o_1: 1, o_2: 2})
 
     def test_init(self):
@@ -59,6 +60,11 @@ class TestSampleSet(unittest.TestCase):
     def test_len(self):
         self.assertEqual(len(self.ss_1), 3)
 
+    def test_eq(self):
+        ss_2 = SampleSet({self.o_1: 1, self.o_2: 2})
+        self.assertNotEqual(id(self.ss_1), id(ss_2))
+        self.assertEqual(self.ss_1, ss_2)
+
     def test_repr(self):
         self.assertEqual(str(self.ss_1), "SampleSet(length = 3)")
 
@@ -67,12 +73,20 @@ class TestSampleSet(unittest.TestCase):
         self.assertTrue(isinstance(b_1, SampleSetBuilder))
         self.assertEqual(b_1.items(), {(self.o_1, 1), (self.o_2, 2)})
 
+    def test_union(self):
+        o_3 = SampleGraphBuilder(self.bcp).build_single_node("a", "1")
+        o_4 = SampleGraphBuilder(self.bcp).build_single_node("a", "3")
+        ss_2 = SampleSet({o_3: 3, o_4: 4})
+        u_1 = self.ss_1.union(ss_2)
+
+        self.assertEqual(u_1.items(), {(self.o_1, 4), (self.o_2, 2), (o_4, 4)})
+
 
 class TestSampleSetBuilder(unittest.TestCase):
 
     bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
-    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
-    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     sb_1 = SampleSetBuilder({o_1: 1, o_2: 2})
 
     def test_init(self):
@@ -100,8 +114,8 @@ class TestSampleSetBuilder(unittest.TestCase):
 class TestSampleSpace(unittest.TestCase):
 
     bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}}, {"r", "s"})
-    o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
-    o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
+    o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     o_3 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
@@ -155,6 +169,91 @@ class TestSampleSpace(unittest.TestCase):
         self.assertEqual(
             vg_1.edges, frozenset({
                 FoldedEdge({"a", "b"}, {ge(frozenset({gn("a", "1"), gn("b", "2")}), "r"): 3})}))
+
+    def test_join_outcomes_on_variable_set(self):
+        bcp = MockSampleGraphComponentsProvider(
+            {"a": {"T", "F"}, "b": {"T", "F"}, "c": {"T", "F"}, "d": {"T", "F"}}, {"r", "s"})
+
+        def sample_set(desc: Dict[List[Tuple[str, str, str, str]], int]) -> SampleSet:
+            ssb = SampleSetBuilder()
+            for sample_edges, count in desc.items():
+                sb = SampleGraphBuilder(bcp)
+                for s_var, s_val,  t_var, t_val in sample_edges:
+                    sb.add_relation({(s_var, s_val), (t_var, t_val)}, "r")
+                ssb.add(sb.build(), count)
+            return ssb.build()
+
+        ab_samples = sample_set({
+            [("a", "T", "b", "T")]: 2,
+            [("a", "T", "b", "F")]: 3,
+            [("a", "F", "b", "T")]: 4,
+            [("a", "F", "b", "F")]: 5})
+
+        bc_samples = sample_set({
+            [("b", "T", "c", "T")]: 6,
+            [("b", "T", "c", "F")]: 7,
+            [("b", "F", "c", "T")]: 8,
+            [("b", "F", "c", "F")]: 9})
+
+        ca_samples = sample_set({
+            [("c", "T", "a", "T")]: 10,
+            [("c", "T", "a", "F")]: 11,
+            [("c", "F", "a", "T")]: 12,
+            [("c", "F", "a", "F")]: 13})
+
+        exe_ab_bc_joint_a = sample_set({
+            [("a", "T", "b", "T"), ("b", "T", "c", "T")]: 2 * 6,
+            [("a", "T", "b", "T"), ("b", "T", "c", "F")]: 2 * 7,
+            [("a", "T", "b", "F"), ("b", "F", "c", "T")]: 3 * 8,
+            [("a", "T", "b", "F"), ("b", "F", "c", "F")]: 3 * 9,
+            [("a", "F", "b", "T"), ("b", "T", "c", "T")]: 4 * 6,
+            [("a", "F", "b", "T"), ("b", "T", "c", "F")]: 4 * 7,
+            [("a", "F", "b", "F"), ("b", "F", "c", "T")]: 5 * 8,
+            [("a", "F", "b", "F"), ("b", "F", "c", "F")]: 5 * 9})
+
+        ab_bc_ss = SampleSpace(bcp, SampleSet(ab_samples.union(bc_samples)))
+
+        ab_bc_joint_a = ab_bc_ss.join_outcomes_on_variable_set({"b"})
+        self.assertEqual(ab_bc_joint_a.length, 8)
+        self.assertEqual(ab_bc_joint_a, exe_ab_bc_joint_a)
+
+        ab_bc_joint_abc = ab_bc_ss.join_outcomes_on_variable_set({"a", "b", "c"})
+        self.assertEqual(ab_bc_joint_abc, exe_ab_bc_joint_a)
+
+        ab_bc_joint_none = ab_bc_ss.join_outcomes_on_variable_set()
+        self.assertEqual(ab_bc_joint_none, exe_ab_bc_joint_a)
+
+        ab_bc_joint_empty = ab_bc_ss.join_outcomes_on_variable_set(set({}))
+        self.assertEqual(ab_bc_joint_empty, ab_samples.union(bc_samples))
+
+        exe_ab_bc_ca_joint_a = exe_ab_bc_joint_a.union(ca_samples)
+
+        exe_ab_bc_ca_joint_abc = sample_set({
+            [("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")]: 2 * 6 * 10,
+            [("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")]: 2 * 6 * 11,
+            [("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "T")]: 2 * 7 * 10,
+            [("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "F")]: 2 * 7 * 11,
+            [("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "T")]: 3 * 8 * 12,
+            [("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "F")]: 3 * 8 * 13,
+            [("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")]: 3 * 9 * 12,
+            [("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")]: 3 * 9 * 13,
+            [("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")]: 4 * 6 * 10,
+            [("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")]: 4 * 6 * 11,
+            [("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "T")]: 4 * 7 * 10,
+            [("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "F")]: 4 * 7 * 11,
+            [("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "T")]: 5 * 8 * 12,
+            [("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "F")]: 5 * 8 * 13,
+            [("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")]: 5 * 9 * 12,
+            [("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")]: 5 * 9 * 13})
+
+        ab_bc_ca_ss = SampleSpace(bcp, SampleSet(ab_samples.union(bc_samples).union(ca_samples)))
+
+        self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a"}), exe_ab_bc_ca_joint_a)
+        self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a", "b"}), exe_ab_bc_ca_joint_abc)
+        self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a", "b", "c"}), exe_ab_bc_ca_joint_abc)
+
+
+        # TODO More cases
 
 
 if __name__ == '__main__':

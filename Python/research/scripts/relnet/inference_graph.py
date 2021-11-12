@@ -42,7 +42,7 @@ class InferenceGraph(SampleSpace):
             name: str,
             outcomes: SampleSet
     ):
-        super().__init__(components_provider, outcomes)
+        super().__init__(components_provider, outcomes, name, evidence)
         self.evidence: SampleGraph = evidence
         self.name: str = name
         self._components_provider: SampleGraphComponentsProvider = components_provider
@@ -63,16 +63,6 @@ class InferenceGraph(SampleSpace):
             self.outcomes.builder(),
             self._components_provider)
 
-    def visualize_outcomes(self, name: Optional[str] = None, height: str = "1024px", width: str = "1024px") -> None:
-        """
-        Will render all outcomes as HTML page and show in browser
-        :param name: optional name of this visualization, if None then self.name will passed
-        :param height: window height
-        :param width: window width
-        :return: None
-        """
-        self._visualize_outcomes(name if name else self.name, height, width, self.evidence)
-
     def describe(self) -> Dict[str, Any]:
         """
         Return set of properties of this inference graph
@@ -84,6 +74,19 @@ class InferenceGraph(SampleSpace):
             "included_variables": {str(v) for v, _ in self.included_variables()},
             "included_relations": {str(r) for r in self.included_relations()},
         }
+
+    def joined_on_variables(self, variables: Optional[Set[Any]], name: Optional[str] = None) -> 'InferenceGraph':
+        """
+        Will join over all outcomes and return new inference graph with joined outcomes
+        :param variables: set of variables to join on, if None will join on all variables
+        :param name: optional name for the joined graph
+        :return: new inference graph with joined outcomes
+        """
+        return InferenceGraph(
+            self._components_provider,
+            self.evidence,
+            name if name else self.name,
+            self.join_outcomes_on_variable_set(variables))
 
     def activation_graph(self, relation_filter: Set[Any] = None, name: Optional[str] = None) -> ActivationGraph:
         """

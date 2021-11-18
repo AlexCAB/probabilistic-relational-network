@@ -18,7 +18,7 @@ website: github.com/alexcab
 created: 2021-11-09
 """
 
-from typing import Dict, Set, Any, Optional, Tuple, Union
+from typing import Dict, Set, Any, Optional, Tuple, Union, Callable
 from pyvis.network import Network
 
 from .folded_graph import FoldedGraph, FoldedNode, FoldedEdge
@@ -69,7 +69,7 @@ class SampleSet(Samples):
         return False
 
     def __repr__(self):
-        return f"SampleSet(length = {self.length})"
+        return "{\n" + '\n'.join(sorted([f"    {o}: {c}" for o, c in self._samples.items()])) + "\n}"
 
     def builder(self) -> 'SampleSetBuilder':
         return SampleSetBuilder({o: c for o, c in self._samples.items()})
@@ -79,6 +79,9 @@ class SampleSet(Samples):
         for s, c in other.items():
             builder.add(s, c)
         return builder.build()
+
+    def filter_samples(self, p: Callable[[SampleGraph], bool]) -> 'SampleSet':
+        return SampleSet({s: c for s, c in self._samples.items() if p(s)})
 
 
 class SampleSetBuilder(Samples):
@@ -233,10 +236,10 @@ class SampleSpace:
                 net.add_edge(ep[0].string_id + str(i), ep[1].string_id + str(i), label=str(edge.relation))
 
         if self._evidence:
-            for node in  self._evidence.nodes:
+            for node in self._evidence.nodes:
                 net.add_node(node.string_id + "_query", label=node.string_id, color="red")
 
-            for edge in  self._evidence.edges:
+            for edge in self._evidence.edges:
                 ep = list(edge.endpoints)
                 net.add_edge(
                     ep[0].string_id + "_query", ep[1].string_id + "_query", label=str(edge.relation), color="red")
@@ -249,6 +252,35 @@ class SampleSpace:
         :param variables: set of variables to join on, if None will join on all variables
         :return: SampleSet of joined outcomes
         """
+        outcomes_acc: SampleSetBuilder = self.outcomes.builder()
+
+        for join_var in variables if variables else self.included_variables():
+            join_outcomes = outcomes_acc.build().filter_samples(lambda o: join_var in o.included_variables)
+
+            print(f"join_var = {join_var}")
+            print(f"join_outcomes = {join_outcomes}")
+
+            # TODO Здесь:
+            # TODO 1) Сгруппировать по не пересекающимся группам
+            # TODO 2) Из каждой группы брать по одному оуткому и соединять их комбинируя
+            # TODO    (помогут рекурсия и цикл)
+            # TODO 3) Обьединяем скомбенированные в один оутком, пермножаем каунты и созраняем всё в outcomes_acc
+            # TODO 4) Когда все комбинации сгенерированы, удаляем из outcomes_acc всё что было в join_outcomes
+            # TODO
+            # TODO
+
+
+
+
+
+
+
+
+
+
+
+
+
         pass
 
         # outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}

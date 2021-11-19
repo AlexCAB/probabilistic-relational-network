@@ -18,97 +18,13 @@ website: github.com/alexcab
 created: 2021-11-09
 """
 
-from typing import Dict, Set, Any, Optional, Tuple, Union, Callable
+from typing import Dict, Set, Any, Optional, Tuple, Union
 from pyvis.network import Network
 
 from .folded_graph import FoldedGraph, FoldedNode, FoldedEdge
 from .graph_components import SampleGraphComponentsProvider, ValueNode, RelationEdge
 from .sample_graph import SampleGraph
-
-
-class Samples:
-    """
-    Base class of collection of samples with count
-    """
-
-    def __init__(
-            self,
-            samples: Dict[SampleGraph, int]
-    ):
-        self._samples: Dict[SampleGraph, int] = samples
-
-    def __bool__(self) -> bool:
-        return bool(self._samples)
-
-    def items(self) -> Set[Tuple[SampleGraph, int]]:
-        return {(o, c) for o, c in self._samples.items()}
-
-    def samples(self) -> Set[SampleGraph]:
-        return set(self._samples.keys())
-
-
-class SampleSet(Samples):
-    """
-    Represent immutable collection of samples with count
-    """
-
-    def __init__(
-            self,
-            samples: Dict[SampleGraph, int]
-    ):
-        super(SampleSet, self).__init__(samples)
-        self._samples: Dict[SampleGraph, int] = samples
-        self.length: int = sum(samples.values())
-
-    def __len__(self) -> int:
-        return self.length
-
-    def __eq__(self, other: Any):
-        if isinstance(other, SampleSet):
-            return self._samples == other._samples
-        return False
-
-    def __repr__(self):
-        return "{\n" + '\n'.join(sorted([f"    {o}: {c}" for o, c in self._samples.items()])) + "\n}"
-
-    def builder(self) -> 'SampleSetBuilder':
-        return SampleSetBuilder({o: c for o, c in self._samples.items()})
-
-    def union(self, other: 'SampleSet'):
-        builder = self.builder()
-        for s, c in other.items():
-            builder.add(s, c)
-        return builder.build()
-
-    def filter_samples(self, p: Callable[[SampleGraph], bool]) -> 'SampleSet':
-        return SampleSet({s: c for s, c in self._samples.items() if p(s)})
-
-
-class SampleSetBuilder(Samples):
-    """
-    Mutable builder of collection of samples with count
-    """
-
-    def __init__(
-            self,
-            samples: Optional[Dict[SampleGraph, int]] = None
-    ):
-        super(SampleSetBuilder, self).__init__(samples if samples else {})
-
-    def __repr__(self):
-        return f"SampleSetBuilder(length = {self.length()})"
-
-    def add(self, sample: SampleGraph, count: int) -> None:
-        if sample in self._samples:
-            self._samples[sample] += count
-        else:
-            self._samples[sample] = count
-
-    def length(self) -> int:
-        return sum(self._samples.values())
-
-    def build(self) -> 'SampleSet':
-        return SampleSet(self._samples)
+from .sample_set import SampleSet, SampleSetBuilder
 
 
 class SampleSpace:

@@ -23,7 +23,8 @@ from typing import Dict, Any, Set, Optional
 from .activation_graph import ActivationGraph, ActiveNode, ActiveEdge
 from .graph_components import SampleGraphComponentsProvider
 from .sample_graph import SampleGraph
-from .sample_space import SampleSpace, SampleSet
+from .sample_space import SampleSpace
+from .sample_set import SampleSet
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

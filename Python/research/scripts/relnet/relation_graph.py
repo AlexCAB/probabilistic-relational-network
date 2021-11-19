@@ -18,13 +18,13 @@ website: github.com/alexcab
 created: 2021-08-09
 """
 
-from math import prod
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from .graph_components import SampleGraphComponentsProvider, BuilderComponentsProvider
 from .inference_graph import InferenceGraph
 from .sample_graph import SampleGraph, SampleGraphBuilder
-from .sample_space import SampleSpace, SampleSet, SampleSetBuilder
+from .sample_space import SampleSpace
+from .sample_set import SampleSet, SampleSetBuilder
 
 
 class RelationGraphBuilder:

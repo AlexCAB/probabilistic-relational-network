@@ -22,7 +22,7 @@ import unittest
 
 from scripts.relnet.relation_graph import BuilderComponentsProvider, RelationGraphBuilder, RelationGraph
 from scripts.relnet.sample_graph import SampleGraphBuilder
-from scripts.relnet.sample_space import SampleSet, SampleSetBuilder
+from scripts.relnet.sample_set import SampleSet, SampleSetBuilder
 
 
 class TestRelationGraphBuilder(unittest.TestCase):

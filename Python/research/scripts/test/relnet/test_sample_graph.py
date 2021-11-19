@@ -214,6 +214,11 @@ class TestSampleGraph(unittest.TestCase):
     e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
     s_1 = SampleGraph(builder, frozenset({a_1, b_1}), frozenset({e_1}), "s_1")
     s_2 = SampleGraph(builder, frozenset({a_1}), frozenset({}), "s_2")
+    s_3 = SampleGraphBuilder(builder) \
+        .add_relation({("a", "1"), ("b", "1")}, "r") \
+        .add_relation({("a", "1"), ("c", "1")}, "g") \
+        .add_relation({("a", "1"), ("d", "1")}, "b") \
+        .build()
 
     def test_init(self):
         self.assertEqual(self.s_1.nodes, frozenset({self.a_1, self.b_1}))
@@ -306,27 +311,21 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(id(s_1.transform_with_replaced_values({"x": "1"}, "s_2")), id(s_1))
 
     def test_neighboring_values(self):
-        s = SampleGraphBuilder(self.builder)\
-            .add_relation({("a", "1"), ("b", "1")}, "r")\
-            .add_relation({("a", "1"), ("c", "1")}, "g")\
-            .add_relation({("a", "1"), ("d", "1")}, "b")\
-            .build()
-
         gn = self.builder.get_node
         ge = self.builder.get_edge
 
         self.assertEqual(
-            s.neighboring_values(gn("a", "1")), {
+            self.s_3.neighboring_values(gn("a", "1")), {
                 gn("b", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r"),
                 gn("c", "1"): ge(frozenset({gn("a", "1"), gn("c", "1")}), "g"),
                 gn("d", "1"): ge(frozenset({gn("a", "1"), gn("d", "1")}), "b")})
 
         self.assertEqual(
-            s.neighboring_values(self.builder.get_node("b", "1")), {
+            self.s_3.neighboring_values(self.builder.get_node("b", "1")), {
                 gn("a", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r")})
 
         self.assertEqual(
-            s.neighboring_values(self.builder.get_node("a", "1"), {"r", "g"}), {
+            self.s_3.neighboring_values(self.builder.get_node("a", "1"), {"r", "g"}), {
                 gn("b", "1"): ge(frozenset({gn("a", "1"), gn("b", "1")}), "r"),
                 gn("c", "1"): ge(frozenset({gn("a", "1"), gn("c", "1")}), "g")})
 
@@ -408,6 +407,11 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(
             self.s_1.variables_subgraph_hash({"a", "b"}),
             (frozenset({self.a_1, self.b_1, self.e_1})))
+
+    def test_edges_endpoint_variables(self):
+        self.assertEqual(
+            self.s_3.edges_endpoint_variables(),
+            frozenset({frozenset({"a", "b"}), frozenset({"a", "c"}), frozenset({"a", "d"})}))
 
 
 if __name__ == '__main__':

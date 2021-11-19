@@ -172,16 +172,18 @@ class SampleSpace:
 
         for join_var in variables if variables else self.included_variables():
             join_outcomes = outcomes_acc.build().filter_samples(lambda o: join_var in o.included_variables)
+            groped_outcomes = join_outcomes.group_intersecting()
 
             print(f"join_var = {join_var}")
             print(f"join_outcomes = {join_outcomes}")
+            print(f"groped_outcomes = {groped_outcomes}")
 
             # TODO Здесь:
-            # TODO 1) Сгруппировать по не пересекающимся группам
-            # TODO 2) Из каждой группы брать по одному оуткому и соединять их комбинируя
+            # TODO +) Сгруппировать по не пересекающимся группам
+            # TODO -) Из каждой группы брать по одному оуткому и соединять их комбинируя
             # TODO    (помогут рекурсия и цикл)
-            # TODO 3) Обьединяем скомбенированные в один оутком, пермножаем каунты и созраняем всё в outcomes_acc
-            # TODO 4) Когда все комбинации сгенерированы, удаляем из outcomes_acc всё что было в join_outcomes
+            # TODO -) Обьединяем скомбенированные в один оутком, пермножаем каунты и созраняем всё в outcomes_acc
+            # TODO -) Когда все комбинации сгенерированы, удаляем из outcomes_acc всё что было в join_outcomes
             # TODO
             # TODO
 

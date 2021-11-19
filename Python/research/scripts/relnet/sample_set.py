@@ -18,7 +18,7 @@ website: github.com/alexcab
 created: 2021-11-19
 """
 
-from typing import Dict, Set, Any, Optional, Tuple, Callable
+from typing import Dict, Set, Any, Optional, Tuple, Callable, List
 
 from .sample_graph import SampleGraph
 
@@ -106,9 +106,38 @@ class SampleSet(Samples):
         """
         To group samples so each group contain sample that
         intersect (i.e. have at least one edge with same endpoint variables)
+        Singe node samples go to separate group.
         :return: Dict[included_variables, sample_set_of_intersected]
         """
-        pass
+        sample_acc: Dict[frozenset[frozenset[Any]], Dict[SampleGraph, int]] = {}
+
+        for sample, count in self._samples.items():
+            if sample.edges:
+                key = sample.edges_endpoint_variables()
+            else:
+                key = frozenset(sample.included_variables)  # Singe node graph
+            if key in sample_acc:
+                sample_acc[key][sample] = count
+            else:
+                sample_acc[key] = {sample: count}
+
+        def group():
+            for k_a in sample_acc.keys():
+                for k_b in sample_acc.keys():
+                    if k_a != k_b and not k_a.isdisjoint(k_b):
+                        sample_acc[k_a | k_b] = sample_acc.pop(k_a) | sample_acc.pop(k_b)
+                        group()
+                        return
+        group()
+        grouped = {
+            frozenset({v for vs in key for v in vs}): SampleSet(samples)
+            for key, samples in sample_acc.items()}
+
+        assert len(grouped) == len(sample_acc), \
+            f"[SampleSet.group_intersecting] Expect each group to have unique list of variables, look like bug, " \
+            f"grouped = {grouped}, sample_acc = {sample_acc}"
+
+        return grouped
 
 
 class SampleSetBuilder(Samples):

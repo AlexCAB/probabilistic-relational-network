@@ -45,7 +45,16 @@ class TestSamples(unittest.TestCase):
 
 class TestSampleSet(unittest.TestCase):
 
-    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2", "3"}, "b": {"1", "2"}}, {"r"})
+    bcp = MockSampleGraphComponentsProvider(
+        {
+            "a": {"1", "2", "3"},
+            "b": {"1", "2", "3"},
+            "c": {"1", "2", "3"},
+            "d": {"1", "2", "3"},
+            "e": {"1", "2", "3"},
+            "f": {"1", "2", "3"},
+            "g": {"1", "2", "3"}},
+        {"r", "s", "t"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     ss_1 = SampleSet({o_1: 1, o_2: 2})
@@ -86,6 +95,41 @@ class TestSampleSet(unittest.TestCase):
         self.assertEqual(
             ss_2.filter_samples(lambda s: "a" in s.included_variables).items(),
             {(o_3, 3)})
+
+    def test_group_intersecting(self):
+        o_11 = SampleGraphBuilder(self.bcp) \
+            .build_single_node("a", "1")
+        o_12 = SampleGraphBuilder(self.bcp) \
+            .build_single_node("a", "2")
+
+        o_21 = SampleGraphBuilder(self.bcp)\
+            .add_relation({("a", "1"), ("b", "1")}, "r") \
+            .build()
+        o_22 = SampleGraphBuilder(self.bcp) \
+            .add_relation({("c", "2"), ("d", "2")}, "s") \
+            .build()
+        o_23 = SampleGraphBuilder(self.bcp) \
+            .add_relation({("a", "2"), ("b", "2")}, "s") \
+            .add_relation({("b", "2"), ("c", "1")}, "t") \
+            .add_relation({("c", "1"), ("d", "2")}, "r") \
+            .build()
+
+        o_31 = SampleGraphBuilder(self.bcp) \
+            .build_single_node("f", "1")
+
+        o_41 = SampleGraphBuilder(self.bcp) \
+            .add_relation({("f", "2"), ("g", "1")}, "r") \
+            .build()
+        o_42 = SampleGraphBuilder(self.bcp) \
+            .add_relation({("f", "2"), ("g", "1")}, "s") \
+            .build()
+
+        self.assertEqual(
+            SampleSet({o_11: 1, o_12: 2, o_21: 3, o_22: 4, o_23: 5, o_31: 6, o_41: 7, o_42: 8}).group_intersecting(), {
+                frozenset({"a"}):  SampleSet({o_11: 1, o_12: 2}),
+                frozenset({"a", "b", "c", "d"}):  SampleSet({o_21: 3, o_22: 4, o_23: 5}),
+                frozenset({"f"}):  SampleSet({o_31: 6}),
+                frozenset({"g", "f"}):  SampleSet({o_41: 7, o_42: 8})})
 
 
 class TestSampleSetBuilder(unittest.TestCase):

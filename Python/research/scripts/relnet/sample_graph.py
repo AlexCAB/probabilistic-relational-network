@@ -449,3 +449,11 @@ class SampleGraph:
         return frozenset(
             {n for n in self.nodes if n.variable in variables}.union(
                 {e for e in self.edges if {ep.variable for ep in e.endpoints}.issubset(variables)}))
+
+    def edges_endpoint_variables(self) -> frozenset[frozenset[Any]]:
+        """
+        Builds set of endpoints variables, for example for edges: (a_T)-{r}-(b_T), (b_T)-{r}-(c_T)
+        will return {{a, b}, {b, c}}
+        :return: set of endpoints variables
+        """
+        return frozenset({frozenset({ep.variable for ep in e.endpoints}) for e in self.edges})

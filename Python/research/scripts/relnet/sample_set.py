@@ -154,6 +154,13 @@ class SampleSetBuilder(Samples):
     def __repr__(self):
         return f"SampleSetBuilder(length = {self.length()})"
 
+    def copy(self):
+        """
+        To copy this SampleSetBuilder
+        :return: new sample set builder
+        """
+        return SampleSetBuilder(self._samples.copy())
+
     def add(self, sample: SampleGraph, count: int) -> 'SampleSetBuilder':
         """
         Add sample to this sample set, if already added then just to sum counts
@@ -165,6 +172,16 @@ class SampleSetBuilder(Samples):
             self._samples[sample] += count
         else:
             self._samples[sample] = count
+        return self
+
+    def add_all(self, samples: Samples):
+        """
+        To add all samples from given sample set
+        :param samples: sample set to be added
+        :return: self
+        """
+        for s, c in samples.items():
+            self.add(s, c)
         return self
 
     def length(self) -> int:

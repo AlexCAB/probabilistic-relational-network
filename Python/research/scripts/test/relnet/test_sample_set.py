@@ -145,12 +145,21 @@ class TestSampleSetBuilder(unittest.TestCase):
     def test_repr(self):
         self.assertEqual(str(self.sb_1), "SampleSetBuilder(length = 3)")
 
+    def test_copy(self):
+        sb_2 = self.sb_1.copy()
+        self.assertNotEqual(id(self.sb_1), id(sb_2))
+
     def test_add(self):
         sb_2 = SampleSetBuilder()
         sb_2.add(self.o_1, 10)
         sb_2.add(self.o_1, 20)
         sb_2.add(self.o_2, 40)
         self.assertEqual(sb_2.items(), {(self.o_1, 30), (self.o_2, 40)})
+
+    def test_add_all(self):
+        sb_2 = SampleSetBuilder()
+        sb_2.add_all(self.sb_1.build())
+        self.assertEqual(sb_2.items(), {(self.o_1, 1), (self.o_2, 2)})
 
     def test_length(self):
         self.assertEqual(self.sb_1.length(), 3)

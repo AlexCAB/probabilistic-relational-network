@@ -18,7 +18,7 @@ website: github.com/alexcab
 created: 2021-11-09
 """
 
-from typing import Dict, Set, Any, Optional, Tuple, Union
+from typing import Dict, Set, Any, Optional, Tuple, Union, List
 from pyvis.network import Network
 
 from .folded_graph import FoldedGraph, FoldedNode, FoldedEdge
@@ -170,6 +170,19 @@ class SampleSpace:
         """
         outcomes_acc: SampleSetBuilder = self.outcomes.builder()
 
+        def cross_join(groups: List[SampleSet], joints: SampleSetBuilder) -> SampleSet:
+            ssb = SampleSetBuilder()
+            if not groups:  # To join if groups empty
+
+                # TODO
+
+                print(f"RRRRRRRR = {joints.build()}")
+
+            else:
+                for s, c in groups[0].items():
+                    ssb.add_all(cross_join(groups[1:], joints.copy().add(s, c)))
+            return ssb.build()
+
         for join_var in variables if variables else self.included_variables():
             join_outcomes = outcomes_acc.build().filter_samples(lambda o: join_var in o.included_variables)
             groped_outcomes = join_outcomes.group_intersecting()
@@ -178,9 +191,16 @@ class SampleSpace:
             print(f"join_outcomes = {join_outcomes}")
             print(f"groped_outcomes = {groped_outcomes}")
 
+            joined_outcomes = cross_join(list(groped_outcomes.values()), SampleSetBuilder())
+
+            print(f"joined_outcomes = {joined_outcomes}")
+
+
+
+
             # TODO Здесь:
             # TODO +) Сгруппировать по не пересекающимся группам
-            # TODO -) Из каждой группы брать по одному оуткому и соединять их комбинируя
+            # TODO +) Из каждой группы брать по одному оуткому и соединять их комбинируя
             # TODO    (помогут рекурсия и цикл)
             # TODO -) Обьединяем скомбенированные в один оутком, пермножаем каунты и созраняем всё в outcomes_acc
             # TODO -) Когда все комбинации сгенерированы, удаляем из outcomes_acc всё что было в join_outcomes

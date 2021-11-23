@@ -33,10 +33,12 @@ class TestSampleGraphBuilder(unittest.TestCase):
     a_1 = builder.get_node("a", "1")
     b_1 = builder.get_node("b", "1")
     c_1 = builder.get_node("c", "1")
+    d_1 = builder.get_node("d", "1")
     e_1 = builder.get_edge(frozenset({a_1, b_1}), "r")
     e_2 = builder.get_edge(frozenset({b_1, c_1}), "r")
     e_3 = builder.get_edge(frozenset({a_1, b_1}), "s")
     e_4 = builder.get_edge(frozenset({b_1, c_1}), "s")
+    e_5 = builder.get_edge(frozenset({c_1, d_1}), "s")
     de_1 = builder.get_edge(frozenset({a_1, b_1}), DirectedRelation("a", "b", "r"))
     de_2 = builder.get_edge(frozenset({b_1, c_1}), DirectedRelation("b", "c", "r"))
 
@@ -185,17 +187,38 @@ class TestSampleGraphBuilder(unittest.TestCase):
             sgb_1.can_sample_be_joined(s_4)
 
     def test_join_sample(self):
-        sgb_1 = SampleGraphBuilder(self.builder, "b_1", {self.a_1, self.b_1}, {self.e_1})
-        s_1 = SampleGraph(self.builder, frozenset({self.b_1, self.c_1}), frozenset({self.e_2}), "s_1")
-        s_2 = SampleGraph(self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_4}), "s_2")
+        sgb_1 = SampleGraphBuilder(
+            self.builder, "b_1", {self.a_1, self.b_1}, {self.e_1})
+        s_1 = SampleGraph(
+            self.builder, frozenset({self.b_1, self.c_1, self.d_1}), frozenset({self.e_2, self.e_5}), "s_1")
+        s_2 = SampleGraph(
+            self.builder, frozenset({self.a_1, self.b_1}), frozenset({self.e_4}), "s_2")
 
         js_1 = sgb_1.join_sample(s_1).build()
 
-        self.assertEqual(js_1.nodes, frozenset({self.a_1, self.b_1, self.c_1}))
-        self.assertEqual(js_1.edges, frozenset({self.e_1, self.e_2}))
+        self.assertEqual(js_1.nodes, frozenset({self.a_1, self.b_1, self.c_1, self.d_1}))
+        self.assertEqual(js_1.edges, frozenset({self.e_1, self.e_2, self.e_5}))
 
-        with self.assertRaises(AssertionError):
+        sgb_2 = SampleGraphBuilder(self.builder, "b_2", {self.a_1, self.b_1}, {self.e_1})
+        s_3 = SampleGraph(self.builder, frozenset({self.b_1}), frozenset({}), "s_3")
+
+        js_2 = sgb_2.join_sample(s_3).build()
+
+        self.assertEqual(js_2.nodes, frozenset({self.a_1, self.b_1}))
+        self.assertEqual(js_2.edges, frozenset({self.e_1}))
+
+        with self.assertRaises(AssertionError):  # Edge conflict (same endpoints with different relation)
             sgb_1.join_sample(s_2)
+
+        with self.assertRaises(AssertionError):  # Connect different single nodes
+            sgb_3 = SampleGraphBuilder(self.builder, "b_3", {self.a_1}, set({}))
+            ss_4 = SampleGraph(self.builder, frozenset({self.b_1}), frozenset({}), "s_4")
+            sgb_3.join_sample(ss_4)
+
+        with self.assertRaises(AssertionError):  # Not connected result graph
+            sgb_4 = SampleGraphBuilder(self.builder, "b_4", {self.a_1, self.b_1}, {self.e_1})
+            ss_5 = SampleGraph(self.builder, frozenset({self.c_1, self.d_1}), frozenset({self.e_5}), "s_1")
+            sgb_4.join_sample(ss_5)
 
     def test_build(self):
         with self.assertRaises(AssertionError):

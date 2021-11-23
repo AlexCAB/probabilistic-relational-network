@@ -36,7 +36,7 @@ class TestSampleSpace(unittest.TestCase):
     o_3 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
-    ss_1 = SampleSpace(bcp, SampleSet({o_1: 1, o_2: 2, o_3: 3}))
+    ss_1 = SampleSpace(bcp, SampleSet(bcp, {o_1: 1, o_2: 2, o_3: 3}))
 
     def test_init(self):
         self.assertEqual(self.ss_1.outcomes.length, 6)
@@ -92,7 +92,7 @@ class TestSampleSpace(unittest.TestCase):
             {"a": {"T", "F"}, "b": {"T", "F"}, "c": {"T", "F"}, "d": {"T", "F"}}, {"r", "s"})
 
         def sample_set(desc: List[Tuple[List[Tuple[str, str, str, str]], int]]) -> SampleSet:
-            ssb = SampleSetBuilder()
+            ssb = SampleSetBuilder(bcp)
             for sample_edges, count in desc:
                 sb = SampleGraphBuilder(bcp)
                 for s_var, s_val,  t_var, t_val in sample_edges:

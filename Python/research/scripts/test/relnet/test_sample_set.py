@@ -30,11 +30,11 @@ class TestSamples(unittest.TestCase):
     bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
-    s_1 = Samples({o_1: 1, o_2: 2})
+    s_1 = Samples(bcp, {o_1: 1, o_2: 2})
 
     def test_bool(self):
         self.assertTrue(self.s_1)
-        self.assertFalse(Samples({}))
+        self.assertFalse(Samples(self.bcp, {}))
 
     def test_items(self):
         self.assertEqual(self.s_1.items(), {(self.o_1, 1), (self.o_2, 2)})
@@ -57,7 +57,14 @@ class TestSampleSet(unittest.TestCase):
         {"r", "s", "t"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
-    ss_1 = SampleSet({o_1: 1, o_2: 2})
+    o_3 = SampleGraphBuilder(bcp) \
+        .add_relation({("a", "1"), ("b", "1")}, "r") \
+        .build()
+    o_4 = SampleGraphBuilder(bcp) \
+        .add_relation({("b", "1"), ("c", "1")}, "s") \
+        .build()
+    ss_1 = SampleSet(bcp, {o_1: 1, o_2: 2})
+    ss_2 = SampleSet(bcp, {o_3: 3, o_4: 4})
 
     def test_init(self):
         self.assertEqual(self.ss_1.items(), {(self.o_1, 1), (self.o_2, 2)})
@@ -67,7 +74,7 @@ class TestSampleSet(unittest.TestCase):
         self.assertEqual(len(self.ss_1), 3)
 
     def test_eq(self):
-        ss_2 = SampleSet({self.o_1: 1, self.o_2: 2})
+        ss_2 = SampleSet(self.bcp, {self.o_1: 1, self.o_2: 2})
         self.assertNotEqual(id(self.ss_1), id(ss_2))
         self.assertEqual(self.ss_1, ss_2)
 
@@ -82,7 +89,7 @@ class TestSampleSet(unittest.TestCase):
     def test_union(self):
         o_3 = SampleGraphBuilder(self.bcp).build_single_node("a", "1")
         o_4 = SampleGraphBuilder(self.bcp).build_single_node("a", "3")
-        ss_2 = SampleSet({o_3: 3, o_4: 4})
+        ss_2 = SampleSet(self.bcp, {o_3: 3, o_4: 4})
         u_1 = self.ss_1.union(ss_2)
 
         self.assertEqual(u_1.items(), {(self.o_1, 4), (self.o_2, 2), (o_4, 4)})
@@ -90,7 +97,7 @@ class TestSampleSet(unittest.TestCase):
     def test_filter_samples(self):
         o_3 = SampleGraphBuilder(self.bcp).build_single_node("a", "1")
         o_4 = SampleGraphBuilder(self.bcp).build_single_node("b", "2")
-        ss_2 = SampleSet({o_3: 3, o_4: 4})
+        ss_2 = SampleSet(self.bcp, {o_3: 3, o_4: 4})
 
         self.assertEqual(
             ss_2.filter_samples(lambda s: "a" in s.included_variables).items(),
@@ -125,11 +132,28 @@ class TestSampleSet(unittest.TestCase):
             .build()
 
         self.assertEqual(
-            SampleSet({o_11: 1, o_12: 2, o_21: 3, o_22: 4, o_23: 5, o_31: 6, o_41: 7, o_42: 8}).group_intersecting(), {
-                frozenset({"a"}):  SampleSet({o_11: 1, o_12: 2}),
-                frozenset({"a", "b", "c", "d"}):  SampleSet({o_21: 3, o_22: 4, o_23: 5}),
-                frozenset({"f"}):  SampleSet({o_31: 6}),
-                frozenset({"g", "f"}):  SampleSet({o_41: 7, o_42: 8})})
+            SampleSet(self.bcp,
+                      {o_11: 1, o_12: 2, o_21: 3, o_22: 4, o_23: 5, o_31: 6, o_41: 7, o_42: 8}).group_intersecting(), {
+                frozenset({"a"}):  SampleSet(self.bcp, {o_11: 1, o_12: 2}),
+                frozenset({"a", "b", "c", "d"}):  SampleSet(self.bcp, {o_21: 3, o_22: 4, o_23: 5}),
+                frozenset({"f"}):  SampleSet(self.bcp, {o_31: 6}),
+                frozenset({"g", "f"}):  SampleSet(self.bcp, {o_41: 7, o_42: 8})})
+
+    def test_make_joined_sample(self):
+        jo_1, cs_1 = self.ss_2.make_joined_sample()
+
+        self.assertEqual(
+            jo_1,
+            SampleGraphBuilder(self.bcp)
+            .add_relation({("a", "1"), ("b", "1")}, "r").add_relation({("b", "1"), ("c", "1")}, "s").build())
+
+        self.assertEqual(set(cs_1), {3, 4})
+
+    def test_is_all_have_variables(self):
+        self.assertFalse(SampleSet(self.bcp, {}).is_all_have_same_value_of_variable({"a"}))
+        self.assertTrue(self.ss_2.is_all_have_same_value_of_variable("b"))
+        self.assertFalse(self.ss_2.is_all_have_same_value_of_variable("a"))
+        self.assertFalse(self.ss_2.is_all_have_same_value_of_variable("not_in_samples"))
 
 
 class TestSampleSetBuilder(unittest.TestCase):
@@ -137,7 +161,7 @@ class TestSampleSetBuilder(unittest.TestCase):
     bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
-    sb_1 = SampleSetBuilder({o_1: 1, o_2: 2})
+    sb_1 = SampleSetBuilder(bcp, {o_1: 1, o_2: 2})
 
     def test_init(self):
         self.assertEqual(self.sb_1.items(), {(self.o_1, 1), (self.o_2, 2)})
@@ -150,14 +174,14 @@ class TestSampleSetBuilder(unittest.TestCase):
         self.assertNotEqual(id(self.sb_1), id(sb_2))
 
     def test_add(self):
-        sb_2 = SampleSetBuilder()
+        sb_2 = SampleSetBuilder(self.bcp)
         sb_2.add(self.o_1, 10)
         sb_2.add(self.o_1, 20)
         sb_2.add(self.o_2, 40)
         self.assertEqual(sb_2.items(), {(self.o_1, 30), (self.o_2, 40)})
 
     def test_add_all(self):
-        sb_2 = SampleSetBuilder()
+        sb_2 = SampleSetBuilder(self.bcp)
         sb_2.add_all(self.sb_1.build())
         self.assertEqual(sb_2.items(), {(self.o_1, 1), (self.o_2, 2)})
 

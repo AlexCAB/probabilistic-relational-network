@@ -20,7 +20,8 @@ created: 2021-11-19
 
 from typing import Dict, Set, Any, Optional, Tuple, Callable, List
 
-from .sample_graph import SampleGraph
+from .graph_components import SampleGraphComponentsProvider
+from .sample_graph import SampleGraph, SampleGraphBuilder
 
 
 class Samples:
@@ -30,8 +31,10 @@ class Samples:
 
     def __init__(
             self,
+            components_provider: SampleGraphComponentsProvider,
             samples: Dict[SampleGraph, int]
     ):
+        self._components_provider: SampleGraphComponentsProvider = components_provider
         self._samples: Dict[SampleGraph, int] = samples
 
     def __bool__(self) -> bool:
@@ -59,9 +62,10 @@ class SampleSet(Samples):
 
     def __init__(
             self,
+            components_provider: SampleGraphComponentsProvider,
             samples: Dict[SampleGraph, int]
     ):
-        super(SampleSet, self).__init__(samples)
+        super(SampleSet, self).__init__(components_provider, samples)
         self._samples: Dict[SampleGraph, int] = samples
         self.length: int = sum(samples.values())
 
@@ -81,7 +85,7 @@ class SampleSet(Samples):
         Create SampleSetBuilder with all samples that in this sample set
         :return: SampleSetBuilder with all samples
         """
-        return SampleSetBuilder({o: c for o, c in self._samples.items()})
+        return SampleSetBuilder(self._components_provider, {o: c for o, c in self._samples.items()})
 
     def union(self, other: 'SampleSet'):
         """
@@ -100,7 +104,7 @@ class SampleSet(Samples):
         :param p: predicate to filter one
         :return: new sample set without filtered out samples
         """
-        return SampleSet({s: c for s, c in self._samples.items() if p(s)})
+        return SampleSet(self._components_provider, {s: c for s, c in self._samples.items() if p(s)})
 
     def group_intersecting(self) -> Dict[frozenset[Any], 'SampleSet']:
         """
@@ -130,7 +134,7 @@ class SampleSet(Samples):
                         return
         group()
         grouped = {
-            frozenset({v for vs in key for v in vs}): SampleSet(samples)
+            frozenset({v for vs in key for v in vs}): SampleSet(self._components_provider, samples)
             for key, samples in sample_acc.items()}
 
         assert len(grouped) == len(sample_acc), \
@@ -138,6 +142,33 @@ class SampleSet(Samples):
             f"grouped = {grouped}, sample_acc = {sample_acc}"
 
         return grouped
+
+    def make_joined_sample(self) -> Tuple[SampleGraph, List[int]]:
+        """
+        Will join all contained samples to get new one which include all nodes and edges.
+        In case there is conflicting (same endpoint but different relation) AssertionError will be raise.
+        In case result sample graph will not connected AssertionError will be raise.
+        :return: (new_sample, list_of_counts)
+        """
+        sgb = SampleGraphBuilder(self._components_provider)
+        for s in self._samples.keys():
+            sgb.join_sample(s)
+        return sgb.build(), list(self._samples.values())
+
+    def is_all_have_same_value_of_variable(self, variable: Any) -> bool:
+        """
+        Check if all samples have given variable included and all have same value of it.
+        For empty sample set return False
+        :param variable: variable to check on
+        :return: True if all samples have given variable included, False otherwise if sample set is empty
+        """
+        values = set({})
+        for sample in self._samples.keys():
+            if variable not in sample.included_variables:
+                return False
+            else:
+                values.add(sample.value_for_variable(variable))
+        return len(values) == 1
 
 
 class SampleSetBuilder(Samples):
@@ -147,9 +178,10 @@ class SampleSetBuilder(Samples):
 
     def __init__(
             self,
+            components_provider: SampleGraphComponentsProvider,
             samples: Optional[Dict[SampleGraph, int]] = None
     ):
-        super(SampleSetBuilder, self).__init__(samples if samples else {})
+        super(SampleSetBuilder, self).__init__(components_provider, samples if samples else {})
 
     def __repr__(self):
         return f"SampleSetBuilder(length = {self.length()})"
@@ -159,7 +191,7 @@ class SampleSetBuilder(Samples):
         To copy this SampleSetBuilder
         :return: new sample set builder
         """
-        return SampleSetBuilder(self._samples.copy())
+        return SampleSetBuilder(self._components_provider, self._samples.copy())
 
     def add(self, sample: SampleGraph, count: int) -> 'SampleSetBuilder':
         """
@@ -168,6 +200,10 @@ class SampleSetBuilder(Samples):
         :param count: count of samples
         :return: self
         """
+
+        assert sample.is_compatible(self._components_provider), \
+            f"[SampleSetBuilder.add] Sample {sample} is incompatible with this sample set"
+
         if sample in self._samples:
             self._samples[sample] += count
         else:
@@ -196,4 +232,4 @@ class SampleSetBuilder(Samples):
         To build immutable sample set
         :return: sample set
         """
-        return SampleSet(self._samples)
+        return SampleSet(self._components_provider, self._samples)

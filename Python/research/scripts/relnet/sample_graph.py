@@ -196,13 +196,37 @@ class SampleGraphBuilder:
         assert sample.is_compatible(self._components_provider), \
             f"[SampleGraphBuilder.join_sample] Incompatible sample {sample}"
 
-        for edge in sample.edges:
-            assert edge.endpoints not in self._endpoints or edge.relation == self._endpoints[edge.endpoints].relation,\
-                f"[SampleGraphBuilder.join_sample] Sample can't be joined since have conflicting edge {edge}"
-            self._edges.add(edge)
-            self._endpoints[edge.endpoints] = edge
-            self._nodes.update(edge.endpoints)
+        def is_connected(edge: RelationEdge) -> bool:
+            return not edge.endpoints.isdisjoint(self._nodes) or not self._nodes
 
+        def join_edges(edges: Set[RelationEdge]) -> None:
+            not_connected = set({})
+
+            for edge in edges:
+                if is_connected(edge):
+                    assert \
+                        edge.endpoints not in self._endpoints \
+                        or edge.relation == self._endpoints[edge.endpoints].relation,\
+                        f"[SampleGraphBuilder.join_sample] Sample can't be joined since have conflicting edge {edge}"
+                    self._edges.add(edge)
+                    self._endpoints[edge.endpoints] = edge
+                    self._nodes.update(edge.endpoints)
+                else:
+                    not_connected.add(edge)
+
+            assert edges != not_connected, \
+                f"[SampleGraphBuilder.join_sample] One or both endpoint should be previously added, " \
+                f"to keep graph connected, got not connected edges  {edges} where previously added {self._nodes}"
+
+            if not_connected:
+                join_edges(not_connected)
+
+        if sample.edges:
+            join_edges(set(sample.edges))
+        else:  # Single node graph
+            assert len(sample.nodes) == 1 and sample.nodes.issubset(self._nodes), \
+                f"[SampleGraphBuilder.join_sample] Single node sample can be joined only " \
+                f"if this builder have its node, node {sample.nodes} not in self nodes {self._nodes}"
         return self
 
     def build(self) -> 'SampleGraph':

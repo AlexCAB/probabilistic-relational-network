@@ -124,7 +124,7 @@ class TestSampleSpace(unittest.TestCase):
             ([("b", "F", "d", "T")], 16),
             ([("b", "F", "d", "F")], 17)])
 
-        expected_ab_bc_joint_a = sample_set([
+        expected_ab_bc_joint_b = sample_set([
             ([("a", "T", "b", "T"), ("b", "T", "c", "T")], 2 * 6),
             ([("a", "T", "b", "T"), ("b", "T", "c", "F")], 2 * 7),
             ([("a", "T", "b", "F"), ("b", "F", "c", "T")], 3 * 8),
@@ -136,8 +136,8 @@ class TestSampleSpace(unittest.TestCase):
 
         ab_bc_ss = SampleSpace(bcp, ab_samples.union(bc_samples))
 
-        ab_bc_joint_a = ab_bc_ss.join_outcomes_on_variable_set({"b"})
-        # self.assertEqual(ab_bc_joint_a.length, 8)
+        # ab_bc_joint_a = ab_bc_ss.join_outcomes_on_variable_set({"b"})
+        # self.assertEqual(ab_bc_joint_a.length, 214)
         # self.assertEqual(ab_bc_joint_a, expected_ab_bc_joint_a)
         #
         # ab_bc_joint_abc = ab_bc_ss.join_outcomes_on_variable_set({"a", "b", "c"})
@@ -148,31 +148,31 @@ class TestSampleSpace(unittest.TestCase):
         #
         # ab_bc_joint_empty = ab_bc_ss.join_outcomes_on_variable_set(set({}))
         # self.assertEqual(ab_bc_joint_empty, ab_samples.union(bc_samples))
-        #
-        # exe_ab_bc_ca_joint_a = expected_ab_bc_joint_a.union(ca_samples)
-        #
-        # expected_ab_bc_ca_joint_abc = sample_set({  # Triangle
-        #     [("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")]: 2 * 6 * 10,
-        #     [("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")]: 2 * 6 * 11,
-        #     [("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "T")]: 2 * 7 * 10,
-        #     [("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "F")]: 2 * 7 * 11,
-        #     [("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "T")]: 3 * 8 * 12,
-        #     [("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "F")]: 3 * 8 * 13,
-        #     [("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")]: 3 * 9 * 12,
-        #     [("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")]: 3 * 9 * 13,
-        #     [("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")]: 4 * 6 * 10,
-        #     [("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")]: 4 * 6 * 11,
-        #     [("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "T")]: 4 * 7 * 10,
-        #     [("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "T", "a", "F")]: 4 * 7 * 11,
-        #     [("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "T")]: 5 * 8 * 12,
-        #     [("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "F", "a", "F")]: 5 * 8 * 13,
-        #     [("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")]: 5 * 9 * 12,
-        #     [("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")]: 5 * 9 * 13})
-        #
-        # ab_bc_ca_ss = SampleSpace(bcp, SampleSet(ab_samples.union(bc_samples).union(ca_samples)))
-        #
-        # self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a"}), exe_ab_bc_ca_joint_a)
-        # self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a", "b"}), expected_ab_bc_ca_joint_abc)
+
+        exe_ab_bc_ca_joint_b = expected_ab_bc_joint_b.union(ca_samples)
+
+        expected_ab_bc_ca_joint_abc = sample_set([  # Triangle
+            ([("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")], 2 * 6 * 10),
+            ([("a", "T", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")], 2 * 6 * 11),
+            ([("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "F", "a", "T")], 2 * 7 * 12),
+            ([("a", "T", "b", "T"), ("b", "T", "c", "F"), ("c", "F", "a", "F")], 2 * 7 * 13),
+            ([("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "T", "a", "T")], 3 * 8 * 10),
+            ([("a", "T", "b", "F"), ("b", "F", "c", "T"), ("c", "T", "a", "F")], 3 * 8 * 11),
+            ([("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")], 3 * 9 * 12),
+            ([("a", "T", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")], 3 * 9 * 13),
+            ([("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "T")], 4 * 6 * 10),
+            ([("a", "F", "b", "T"), ("b", "T", "c", "T"), ("c", "T", "a", "F")], 4 * 6 * 11),
+            ([("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "F", "a", "T")], 4 * 7 * 12),
+            ([("a", "F", "b", "T"), ("b", "T", "c", "F"), ("c", "F", "a", "F")], 4 * 7 * 13),
+            ([("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "T", "a", "T")], 5 * 8 * 10),
+            ([("a", "F", "b", "F"), ("b", "F", "c", "T"), ("c", "T", "a", "F")], 5 * 8 * 11),
+            ([("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "T")], 5 * 9 * 12),
+            ([("a", "F", "b", "F"), ("b", "F", "c", "F"), ("c", "F", "a", "F")], 5 * 9 * 13)])
+
+        ab_bc_ca_ss = SampleSpace(bcp, ab_samples.union(bc_samples).union(ca_samples))
+
+        # self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"b"}), exe_ab_bc_ca_joint_b)
+        self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a", "b"}), expected_ab_bc_ca_joint_abc)
         # self.assertEqual(ab_bc_ca_ss.join_outcomes_on_variable_set({"a", "b", "c"}), expected_ab_bc_ca_joint_abc)
         #
         # expected_ab_bc_bd_joint_abc = sample_set({  # Star

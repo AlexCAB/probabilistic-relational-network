@@ -206,8 +206,13 @@ class SampleGraphBuilder:
                 if is_connected(edge):
                     assert \
                         edge.endpoints not in self._endpoints \
-                        or edge.relation == self._endpoints[edge.endpoints].relation,\
+                        or edge.relation == self._endpoints[edge.endpoints].relation, \
                         f"[SampleGraphBuilder.join_sample] Sample can't be joined since have conflicting edge {edge}"
+                    for ep in edge.endpoints:
+                        assert \
+                            ep.variable not in {n.variable for n in self._nodes} or ep in self._nodes, \
+                            f"[SampleGraphBuilder.join_sample] Endpoint {ep} can't be added since sample already " \
+                            f"have another value of variable '{ep.variable}'"
                     self._edges.add(edge)
                     self._endpoints[edge.endpoints] = edge
                     self._nodes.update(edge.endpoints)

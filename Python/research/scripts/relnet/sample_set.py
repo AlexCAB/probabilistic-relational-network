@@ -210,7 +210,7 @@ class SampleSetBuilder(Samples):
             self._samples[sample] = count
         return self
 
-    def add_all(self, samples: Samples):
+    def add_all(self, samples: Samples) -> 'SampleSetBuilder':
         """
         To add all samples from given sample set
         :param samples: sample set to be added
@@ -218,6 +218,27 @@ class SampleSetBuilder(Samples):
         """
         for s, c in samples.items():
             self.add(s, c)
+        return self
+
+    def remove(self, sample: SampleGraph) -> Tuple[SampleGraph, int]:
+        """
+        Remove given sample from this builder
+        :param sample: SampleGraph to be removed
+        :return: removed (sample, count)
+        """
+        assert sample in self._samples, \
+            f"[SampleSetBuilder.remove] Sample {sample} not in this sample set"
+
+        return sample, self._samples.pop(sample)
+
+    def remove_all(self, samples: Samples) -> 'SampleSetBuilder':
+        """
+        Remove all samples from given sample set
+        :param samples: sample set to be removed
+        :return: self
+        """
+        for sample in samples.samples():
+            self.remove(sample)
         return self
 
     def length(self) -> int:

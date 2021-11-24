@@ -31,6 +31,7 @@ class TestSampleGraphBuilder(unittest.TestCase):
         {"a": {"1", "2"}, "b": {"1"}, "c": {"1"}, "d": {"1"}, "f": {"1"}},
         {"r", "s"})
     a_1 = builder.get_node("a", "1")
+    a_2 = builder.get_node("a", "2")
     b_1 = builder.get_node("b", "1")
     c_1 = builder.get_node("c", "1")
     d_1 = builder.get_node("d", "1")
@@ -39,6 +40,7 @@ class TestSampleGraphBuilder(unittest.TestCase):
     e_3 = builder.get_edge(frozenset({a_1, b_1}), "s")
     e_4 = builder.get_edge(frozenset({b_1, c_1}), "s")
     e_5 = builder.get_edge(frozenset({c_1, d_1}), "s")
+    e_6 = builder.get_edge(frozenset({a_2, b_1}), "r")
     de_1 = builder.get_edge(frozenset({a_1, b_1}), DirectedRelation("a", "b", "r"))
     de_2 = builder.get_edge(frozenset({b_1, c_1}), DirectedRelation("b", "c", "r"))
 
@@ -217,8 +219,13 @@ class TestSampleGraphBuilder(unittest.TestCase):
 
         with self.assertRaises(AssertionError):  # Not connected result graph
             sgb_4 = SampleGraphBuilder(self.builder, "b_4", {self.a_1, self.b_1}, {self.e_1})
-            ss_5 = SampleGraph(self.builder, frozenset({self.c_1, self.d_1}), frozenset({self.e_5}), "s_1")
+            ss_5 = SampleGraph(self.builder, frozenset({self.c_1, self.d_1}), frozenset({self.e_5}), "s_5")
             sgb_4.join_sample(ss_5)
+
+        with self.assertRaises(AssertionError):  # Other variable value
+            sgb_5 = SampleGraphBuilder(self.builder, None, {self.a_1, self.b_1}, {self.e_1})
+            ss_6 = SampleGraph(self.builder, frozenset({self.a_2, self.b_1}), frozenset({self.e_6}), "s_6")
+            sgb_5.join_sample(ss_6)
 
     def test_build(self):
         with self.assertRaises(AssertionError):

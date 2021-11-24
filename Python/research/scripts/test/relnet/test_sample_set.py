@@ -185,6 +185,17 @@ class TestSampleSetBuilder(unittest.TestCase):
         sb_2.add_all(self.sb_1.build())
         self.assertEqual(sb_2.items(), {(self.o_1, 1), (self.o_2, 2)})
 
+    def test_remove(self):
+        sb_2 = self.sb_1.copy()
+        r_1 = sb_2.remove(self.o_1)
+        self.assertEqual(sb_2.items(), {(self.o_2, 2)})
+        self.assertEqual(r_1, (self.o_1, 1))
+
+    def test_remove_all(self):
+        sb_2 = self.sb_1.copy()
+        sb_2.remove_all(sb_2)
+        self.assertEqual(sb_2.items(), set({}))
+
     def test_length(self):
         self.assertEqual(self.sb_1.length(), 3)
 

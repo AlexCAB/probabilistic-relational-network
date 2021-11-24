@@ -168,6 +168,7 @@ class SampleSpace:
         :param variables: set of variables to join on, if None will join on all variables
         :return: SampleSet of joined outcomes
         """
+        join_variables = variables if (variables is not None) else {v for v, _ in self.included_variables()}
         outcomes_acc: SampleSetBuilder = self.outcomes.builder()
 
         def cross_join(var: Any, groups: List[SampleSet], joints: SampleSetBuilder) -> SampleSet:
@@ -182,7 +183,7 @@ class SampleSpace:
                     ssb.add_all(cross_join(var, groups[1:], joints.copy().add(s, c)))
             return ssb.build()
 
-        for join_var in variables if variables else self.included_variables():
+        for join_var in join_variables:
             join_outcomes = outcomes_acc.build().filter_samples(lambda o: join_var in o.included_variables)
             groped_outcomes = join_outcomes.group_intersecting()
 
@@ -195,53 +196,10 @@ class SampleSpace:
 
             print(f"joined_outcomes = {joined_outcomes}")
 
+            outcomes_acc.remove_all(join_outcomes)
+            outcomes_acc.add_all(joined_outcomes)
 
-            # TODO Здесь:
-            # TODO +) Сгруппировать по не пересекающимся группам
-            # TODO +) Из каждой группы брать по одному оуткому и соединять их комбинируя
-            # TODO    (помогут рекурсия и цикл)
-            # TODO +) Обьединяем скомбенированные в один оутком, пермножаем каунты и созраняем всё в outcomes_acc
-            # TODO -) Когда все комбинации сгенерированы, удаляем из outcomes_acc всё что было в join_outcomes
-            # TODO
-            # TODO
+            print(f"join_var = {join_var}")
+            print(f"outcomes_acc.build() = {outcomes_acc.build()}")
 
-
-
-
-
-
-
-
-
-
-
-
-
-        pass
-
-        # outcomes_acc: Dict[frozenset[Any], List[(SampleGraphBuilder, List[int])]] = {}
-        # rel_graph_builder = RelationGraphBuilder(name=name, components_provider=self._components_provider)
-        #
-        # for outcome, count in self.outcomes.items():
-        #     if variables.issubset(outcome.included_variables):  # If have all variables included
-        #         outcome_hash = outcome.variables_subgraph_hash(variables)
-        #         if outcome_hash in outcomes_acc:
-        #             i = 0
-        #             while 0 <= i < len(outcomes_acc[outcome_hash]):
-        #                 sample_builder, count_acc = outcomes_acc[outcome_hash][i]
-        #                 if sample_builder.can_sample_be_joined(outcome):  # Add to one of exist groups
-        #                     sample_builder.join_sample(outcome)
-        #                     count_acc.append(count)
-        #                     i = -1
-        #                 else:
-        #                     i += 1
-        #             if i >= 0:  # Add to new group
-        #                 outcomes_acc[outcome_hash].append((outcome.builder().set_name(None), [count]))
-        #         else:
-        #             outcomes_acc[outcome_hash] = [(outcome.builder().set_name(None), [count])]
-        #     else:
-        #         rel_graph_builder.add_outcome(outcome, count)
-        # for _, sample_builders in outcomes_acc.items():
-        #     for sample_builder, counts in sample_builders:
-        #         rel_graph_builder.add_outcome(sample_builder.build(), prod(counts))
-
+        return outcomes_acc.build()

@@ -65,7 +65,7 @@ class RelationEdge:
         return (self.endpoints, self.relation).__hash__()
 
     def __repr__(self):
-        se = sorted(self.endpoints, key=lambda e: str(e))
+        se = sorted([str(ep) for ep in self.endpoints])
         return f"{se[0]}--{{{self.relation}}}--{se[1]}"
 
     def __copy__(self):

@@ -150,10 +150,9 @@ class TestSampleSet(unittest.TestCase):
         self.assertEqual(set(cs_1), {3, 4})
 
     def test_is_all_have_variables(self):
-        self.assertFalse(SampleSet(self.bcp, {}).is_all_have_same_value_of_variable({"a"}))
-        self.assertTrue(self.ss_2.is_all_have_same_value_of_variable("b"))
-        self.assertFalse(self.ss_2.is_all_have_same_value_of_variable("a"))
-        self.assertFalse(self.ss_2.is_all_have_same_value_of_variable("not_in_samples"))
+        self.assertTrue(SampleSet(self.bcp, {}).is_all_values_match())
+        self.assertFalse(self.ss_1.is_all_values_match())
+        self.assertTrue(self.ss_2.is_all_values_match())
 
 
 class TestSampleSetBuilder(unittest.TestCase):

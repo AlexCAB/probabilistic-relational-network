@@ -46,7 +46,7 @@ class RelationGraphBuilder:
         self._components_provider = components_provider if components_provider \
             else BuilderComponentsProvider(variables, relations)
         self._name: Optional[str] = name
-        self._outcomes: SampleSetBuilder = outcomes if outcomes else SampleSetBuilder()
+        self._outcomes: SampleSetBuilder = outcomes if outcomes else SampleSetBuilder(self._components_provider)
         self._id_counter = 0
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = self._components_provider.variables()
         self.relations: frozenset[Any] = self._components_provider.relations()
@@ -250,7 +250,7 @@ class RelationGraph(SampleSpace):
             self._components_provider,
             evidence,
             name if name else f"inference_of_{self.name}",
-            SampleSet(selected_outcomes))
+            SampleSet(self._components_provider, selected_outcomes))
 
     def joined_on_variables(self, variables: Optional[Set[Any]], name: Optional[str] = None) -> 'RelationGraph':
         """

@@ -35,7 +35,7 @@ class TestInferenceGraph(unittest.TestCase):
     s_2 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
-    ig_1 = InferenceGraph(bcp, s_1, "ig_1", SampleSet({s_1: 1, s_2: 2}))
+    ig_1 = InferenceGraph(bcp, s_1, "ig_1", SampleSet(bcp, {s_1: 1, s_2: 2}))
 
     def test_init(self):
         self.assertEqual(self.ig_1.evidence, self.s_1)
@@ -86,7 +86,7 @@ class TestInferenceGraph(unittest.TestCase):
         q_1_c_weight = ((s_1_3_sim * 3) + (s_1_4_sim * 4)) / 10
         q_1_d_weight = (s_1_4_sim * 4) / 10
 
-        ag_1 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet({s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
+        ag_1 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
             .activation_graph(name="ag_1")
 
         self.assertEqual(ag_1.name, "ag_1")
@@ -105,7 +105,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_2 = InferenceGraph(self.bcp, s_2, "ig_2", SampleSet({s_2: 2, s_3: 3, s_4: 4})).activation_graph()
+        ag_2 = InferenceGraph(self.bcp, s_2, "ig_2", SampleSet(self.bcp, {s_2: 2, s_3: 3, s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_2.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -120,7 +120,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_3 = InferenceGraph(self.bcp, s_3, "ig_3", SampleSet({s_3: 3, s_4: 4})).activation_graph()
+        ag_3 = InferenceGraph(self.bcp, s_3, "ig_3", SampleSet(self.bcp, {s_3: 3, s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_3.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -135,7 +135,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_4 = InferenceGraph(self.bcp, s_4, "ig_4", SampleSet({s_4: 4})).activation_graph()
+        ag_4 = InferenceGraph(self.bcp, s_4, "ig_4", SampleSet(self.bcp, {s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_4.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -150,7 +150,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=True),
         })
 
-        ag_5 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet({s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
+        ag_5 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
             .activation_graph({"r"})
 
         self.assertEqual(set(ag_5.nodes), {

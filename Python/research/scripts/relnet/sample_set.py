@@ -155,20 +155,22 @@ class SampleSet(Samples):
             sgb.join_sample(s)
         return sgb.build(), list(self._samples.values())
 
-    def is_all_have_same_value_of_variable(self, variable: Any) -> bool:
+    def is_all_values_match(self) -> bool:
         """
-        Check if all samples have given variable included and all have same value of it.
-        For empty sample set return False
-        :param variable: variable to check on
-        :return: True if all samples have given variable included, False otherwise if sample set is empty
+        Check for all samples if there exist sample which contain different value for the same variable .
+        For empty sample set return True
+        :return: True if all values match or empty set, False otherwise
         """
-        values = set({})
+        var_acc: Dict[Any, Any] = {}
+
         for sample in self._samples.keys():
-            if variable not in sample.included_variables:
-                return False
-            else:
-                values.add(sample.value_for_variable(variable))
-        return len(values) == 1
+            for node in sample.nodes:
+                if node.variable in var_acc:
+                    if var_acc[node.variable] != node.value:
+                        return False
+                else:
+                    var_acc[node.variable] = node.value
+        return True
 
 
 class SampleSetBuilder(Samples):

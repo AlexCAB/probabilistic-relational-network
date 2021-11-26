@@ -443,6 +443,11 @@ class TestSampleGraph(unittest.TestCase):
             self.s_3.edges_endpoint_variables(),
             frozenset({frozenset({"a", "b"}), frozenset({"a", "c"}), frozenset({"a", "d"})}))
 
+    def test_values(self):
+        self.assertEqual(
+            self.s_3.values(),
+            {("a", "1"), ("b", "1"), ("c", "1"), ("d", "1")})
+
 
 if __name__ == '__main__':
     unittest.main()

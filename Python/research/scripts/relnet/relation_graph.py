@@ -252,7 +252,7 @@ class RelationGraph(SampleSpace):
             name if name else f"inference_of_{self.name}",
             SampleSet(self._components_provider, selected_outcomes))
 
-    def joined_on_variables(self, variables: Optional[Set[Any]], name: Optional[str] = None) -> 'RelationGraph':
+    def joined_on_variables(self, variables: Optional[Set[Any]] = None, name: Optional[str] = None) -> 'RelationGraph':
         """
         Will join over all outcomes and return new relation graph with joined outcomes
         :param variables: set of variables to join on, if None will join on all variables

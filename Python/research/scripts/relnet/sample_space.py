@@ -17,6 +17,8 @@ author: CAB
 website: github.com/alexcab
 created: 2021-11-09
 """
+
+import os
 from math import prod
 from typing import Dict, Set, Any, Optional, Tuple, Union, List
 from pyvis.network import Network
@@ -191,3 +193,24 @@ class SampleSpace:
             outcomes_acc.add_all(joined_outcomes)
 
         return outcomes_acc.build()
+
+    def print_samples(self) -> str:
+        """
+        Print all samples as string
+        :return: string
+        """
+        return os.linesep.join(sorted([f"{s}({c})" for s, c in self.outcomes.items()]))
+
+    def find_for_values(self, values: Set[Tuple[Any, Any]]) -> SampleSet:
+        """
+        Will scan over all samples and return that one which contains all given values
+        :param values: Set[(variable, value)]
+        :return: SampleSet of found values
+        """
+        ssb = SampleSetBuilder(self._components_provider)
+
+        for s, c in self.outcomes.items():
+            if values.issubset(s.values()):
+                ssb.add(s, c)
+
+        return ssb.build()

@@ -51,6 +51,9 @@ class TestValueNode(unittest.TestCase):
         self.assertNotEqual(id(a_1_1), id(a_1_2))
         self.assertEqual(a_1_1, a_1_2)
 
+    def test_var_val(self):
+        self.assertEqual(self.a_1.var_val(), ("a", "1"))
+
 
 class TestRelationEdge(unittest.TestCase):
 

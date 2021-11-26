@@ -486,3 +486,10 @@ class SampleGraph:
         :return: set of endpoints variables
         """
         return frozenset({frozenset({ep.variable for ep in e.endpoints}) for e in self.edges})
+
+    def values(self) -> Set[Tuple[Any, Any]]:
+        """
+        Get values included in this sample graph
+        :return: Set[(variable, value)]
+        """
+        return {n.var_val() for n in self.nodes}

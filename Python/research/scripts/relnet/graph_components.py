@@ -48,6 +48,13 @@ class ValueNode:
             return self.variable == other.variable and self.value == other.value
         return False
 
+    def var_val(self) -> (Any, Any):
+        """
+        Get variable and value in form of tuple
+        :return: (variable, value)
+        """
+        return self.variable, self.value
+
 
 class RelationEdge:
     """

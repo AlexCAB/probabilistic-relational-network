@@ -18,6 +18,7 @@ website: github.com/alexcab
 created: 2021-11-09
 """
 
+import os
 import unittest
 from copy import copy
 from typing import List, Tuple
@@ -190,6 +191,16 @@ class TestSampleSpace(unittest.TestCase):
         self.assertEqual(ab_bc_bd_ss.join_outcomes_on_variable_set({"b"}), expected_ab_bc_bd_joint_abc)
         self.assertEqual(ab_bc_bd_ss.join_outcomes_on_variable_set({"a", "b"}), expected_ab_bc_bd_joint_abc)
         self.assertEqual(ab_bc_bd_ss.join_outcomes_on_variable_set({"a", "b", "c"}), expected_ab_bc_bd_joint_abc)
+
+    def test_print_samples(self):
+        self.assertEqual(
+            self.ss_1.print_samples(),
+            os.linesep.join(["{(a_1)--{r}--(b_2)}(3)", "{(a_1)}(1)", "{(a_2)}(2)"]))
+
+    def test_find_for_values(self):
+        self.assertEqual(
+            self.ss_1.find_for_values({("a", "1"), ("b", "2")}),
+            SampleSet(self.bcp, {self.o_3: 3}))
 
 
 if __name__ == '__main__':

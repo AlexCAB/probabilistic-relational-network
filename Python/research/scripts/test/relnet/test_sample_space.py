@@ -49,6 +49,11 @@ class TestSampleSpace(unittest.TestCase):
     def test_outcomes(self):
         self.assertEqual(self.ss_1.outcomes.items(), {(self.o_1, 1),  (self.o_2, 2), (self.o_3, 3)})
 
+    def test_sample_builder(self):
+        sb_1 = self.ss_1.sample_builder()
+        s_1 = sb_1.build_single_node("a", "2")
+        self.assertEqual(s_1.edges_set_view(), ("a", "2"))
+
     def test_outcomes_as_edges_sets(self):
         self.assertEqual(self.ss_1.outcomes_as_edges_sets(), frozenset({
             (frozenset({(frozenset({("a", "1"), ("b", "2")}), "r")}), 3),
@@ -61,6 +66,16 @@ class TestSampleSpace(unittest.TestCase):
             {("a", "1"): 0.4444444444444444,
              ("a", "2"): 0.2222222222222222,
              ("b", "2"): 0.3333333333333333})
+
+    def test_marginal_variables_probability(self):
+        self.assertEqual(
+            self.ss_1.marginal_variables_probability(),
+            {"a": {"1": 0.6666666666666666, "2": 0.3333333333333333},
+             "b": {"2": 1.0}})
+
+        self.assertEqual(
+            self.ss_1.marginal_variables_probability({"a"}),
+            {"a": {"1": 0.6666666666666666, "2": 0.3333333333333333}})
 
     def test_included_variables(self):
         self.assertEqual(

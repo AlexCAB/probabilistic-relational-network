@@ -60,6 +60,35 @@ class TestInferenceGraph(unittest.TestCase):
             "query": "{(a_1)}"
         })
 
+    def test_joined_on_variables(self):
+        e_1 = SampleGraphBuilder(self.bcp).build_single_node("b", "2")
+        o_11 = SampleGraphBuilder(self.bcp).set_name("o_11") \
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+        o_12 = SampleGraphBuilder(self.bcp).set_name("o_12") \
+            .add_relation({("c", "3"), ("d", "4")}, "r") \
+            .build()
+
+        ig_1 = InferenceGraph(self.bcp, e_1, "ig_1",  SampleSet(self.bcp, {o_11: 2, o_12: 3}))
+        jg_1 = ig_1.joined_on_variables({"b", "c"}, "jg_1")
+
+        self.assertEqual(jg_1.name, "jg_1")
+        self.assertEqual(
+            jg_1.outcomes.items(), {
+                (SampleGraphBuilder(self.bcp)
+                 .add_relation({("a", "1"), ("b", "2")}, "r")
+                 .add_relation({("b", "2"), ("c", "3")}, "r")
+                 .add_relation({("c", "3"), ("d", "4")}, "r")
+                 .build(), 6)
+            })
+
+    def test_relation_graph(self):
+        rg_1 = self.ig_1.relation_graph("rg_1")
+
+        self.assertEqual(rg_1.outcomes, self.ig_1.outcomes)
+        self.assertEqual(rg_1.name, "rg_1")
+
     def test_active_values(self):
         s_1 = SampleGraphBuilder(self.bcp)\
             .build_single_node("a", "1")

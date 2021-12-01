@@ -28,7 +28,7 @@ from .sample_set import SampleSet
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .relation_graph import RelationGraphBuilder
+    from .relation_graph import RelationGraphBuilder, RelationGraph
 
 
 class InferenceGraph(SampleSpace):
@@ -76,7 +76,7 @@ class InferenceGraph(SampleSpace):
             "included_relations": {str(r) for r in self.included_relations()},
         }
 
-    def joined_on_variables(self, variables: Optional[Set[Any]], name: Optional[str] = None) -> 'InferenceGraph':
+    def joined_on_variables(self, variables: Optional[Set[Any]] = None, name: Optional[str] = None) -> 'InferenceGraph':
         """
         Will join over all outcomes and return new inference graph with joined outcomes
         :param variables: set of variables to join on, if None will join on all variables
@@ -88,6 +88,17 @@ class InferenceGraph(SampleSpace):
             self.evidence,
             name if name else self.name,
             self.join_outcomes_on_variable_set(variables))
+
+    def relation_graph(self, name: Optional[str] = None) -> 'RelationGraph':
+        """
+        Convert inference graph to relation graph with same set of outcomes
+        :return: new RelationGraph
+        """
+        from .relation_graph import RelationGraph
+        return RelationGraph(
+            self._components_provider,
+            name if name else self.name,
+            self.outcomes)
 
     def activation_graph(self, relation_filter: Set[Any] = None, name: Optional[str] = None) -> ActivationGraph:
         """

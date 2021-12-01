@@ -25,7 +25,7 @@ from pyvis.network import Network
 
 from .folded_graph import FoldedGraph, FoldedNode, FoldedEdge
 from .graph_components import SampleGraphComponentsProvider, ValueNode, RelationEdge
-from .sample_graph import SampleGraph
+from .sample_graph import SampleGraph, SampleGraphBuilder
 from .sample_set import SampleSet, SampleSetBuilder
 
 
@@ -51,6 +51,13 @@ class SampleSpace:
         raise AssertionError(
             "[SampleSpace.__copy__] Sample graph should not be copied, "
             "use one of transformation method or builder to get new instance")
+
+    def sample_builder(self) -> SampleGraphBuilder:
+        """
+        Create new SampleGraphBuilder
+        :return: new SampleGraphBuilder
+        """
+        return SampleGraphBuilder(self._components_provider)
 
     def outcomes_as_edges_sets(
             self
@@ -79,6 +86,31 @@ class SampleSpace:
         total = sum(acc.values())
 
         return {(k.variable, k.value): v / total for k, v in acc.items()}
+
+    def marginal_variables_probability(self, variables: Optional[Set[Any]] = None) -> Dict[str, Dict[str, float]]:
+        """
+        Count marginal distribution for given set of variables
+        :param variables: List of variable to marginalize, if no then all will marginalized
+        :return: Dict[variable, Dict[value, probability]]
+        """
+        variables_to_check = variables if variables else {v for v, _ in self._components_provider.variables()}
+        group_acc:  Dict[str, Dict[str, int]] = {}
+        norm_acc: Dict[str, Dict[str, float]] = {}
+
+        for outcome, count in self.outcomes.items():
+            for in_var in outcome.included_variables:
+                if in_var in variables_to_check:
+                    in_val = outcome.value_for_variable(in_var)
+                    if in_var in group_acc:
+                        group_acc[in_var][in_val] = group_acc[in_var].get(in_val, 0) + count
+                    else:
+                        group_acc[in_var] = {in_val: count}
+
+        for var, values in group_acc.items():
+            count_sum = sum(values.values())
+            norm_acc[var] = {v: c / count_sum for v, c in values.items()}
+
+        return norm_acc
 
     def included_variables(self) -> frozenset[Tuple[Any, frozenset[Any]]]:
         """

@@ -18,11 +18,12 @@ website: github.com/alexcab
 created: 2021-10-12
 """
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, List
 
 from pgmpy.factors.discrete import DiscreteFactor
 from pgmpy.models import MarkovNetwork
 
+from scripts.relnet.graph_components import DirectedRelation
 from scripts.relnet.inference_graph import InferenceGraph
 from scripts.relnet.relation_graph import RelationGraph, RelationGraphBuilder
 
@@ -30,14 +31,22 @@ from pgmpy.inference import VariableElimination
 from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 
+from scripts.relnet.sample_graph import SampleGraph
 
 net_config = {
     'D': (2, [[.6], [.4]], None, None),  # Difficulty
     'I': (2, [[.7], [.3]], None, None),  # Intelligence
-    'G': (3, [[.3, .05, .9, .5], [.4, .25, .08, .3], [.3, .7, .02, .2]], ['I', 'D'], [2, 2]),  # Grade
-    'S': (2, [[.95, .2], [.05, .8]], ['I'], [2]),  # SAT
-    'L': (2, [[.1, .4, .99], [.9, .6, .01]], ['G'], [3])   # Latter
+    'G': (3, [
+        [.3, .05, .9, .5],
+        [.4, .25, .08, .3],
+        [.3, .7, .02, .2]], ['I', 'D'], [2, 2]),  # Grade
+    'S': (2, [[.95, .2],
+              [.05, .8]], ['I'], [2]),  # SAT
+    'L': (2, [[.1, .4, .99],
+              [.9, .6, .01]], ['G'], [3])   # Latter
 }
+
+prop_factor = 100  # User to convert float probability to int number of outcomes
 
 
 def make_bayes_network() -> BayesianNetwork:
@@ -54,25 +63,61 @@ def make_bayes_network() -> BayesianNetwork:
     return model
 
 
+def value_combination(variables: List[Tuple[str, int]]) -> List[List[str]]:
+    (var, card) = variables[0]
+    if len(variables) > 1:
+        return [[f"{var}({j})"] + vs for j in range(0, card) for vs in value_combination(variables[1:])]
+    else:
+        return [[f"{var}({j})"] for j in range(0, card)]
+
+
+def value_map_from_cpd(
+        var: str, card: int, p_var: List[str], p_card: List[int], cpd: List[List[float]]
+) -> Dict[frozenset[str], float]:
+    values = {}
+
+    for i in range(0, card):
+        if p_var and p_card:
+            p_vs = [[f"{var}({i})"] + vs for vs in value_combination(list(zip(p_var, p_card)))]
+            for v, p in list(zip(p_vs, cpd[i])):
+                values[frozenset(v)] = p
+        else:
+            values[frozenset({f"{var}({i})"})] = cpd[i][0]
+
+    return values
+
+
+def build_outcome(rgb: RelationGraphBuilder, var: str, p_var: List[str], vs: List[str]) -> SampleGraph:
+    if p_var:
+        o_builder = rgb.sample_builder()
+        for p_v in p_var:
+            o_builder.add_relation(
+                {(p_v, next(v for v in vs if p_v in v)), (var, next(v for v in vs if var in v))},
+                DirectedRelation(p_v, var, "r"))
+        return o_builder.build()
+    else:
+        assert len(vs) == 1, f"[make_relation_graph] Expect exactly 1 value but got: {vs}"
+        return rgb.sample_builder().build_single_node(var, vs[0])
+
+
 def make_relation_graph() -> RelationGraph:
-    pass
+    rgb = RelationGraphBuilder(
+        variables={var: {f"{var}({i})" for i in range(0, card)} for var, (card, _, _, _) in net_config.items()},
+        relations={"r"})
 
-    # rgb = RelationGraphBuilder(
-    #     variables={n: {f"{n}(0)", f"{n}(1)"} for n in nodes},
-    #     relations={"r"})
-    # for edge, values in edges:
-    #     for sid, tid, i in [(0, 0, 0), (0, 1, 1), (1, 0, 2), (1, 1, 3)]:
-    #         sn = f"{edge[0]}({sid})"
-    #         tn = f"{edge[1]}({tid})"
-    #         outcome = rgb.sample_builder()\
-    #             .add_relation({(edge[0], sn), (edge[1], tn)}, "r")\
-    #             .build()
-    #         print(f"Outcome: {outcome}, count = {values[i]}")
-    #         rgb.add_outcome(outcome, values[i])
-    # rel_graph = rgb.build()
-    # # rel_graph.visualize_outcomes()
-    # return rel_graph
+    for var, (card, cpd, p_var, p_card) in net_config.items():
+        for vs, prop in value_map_from_cpd(var, card, p_var, p_card, cpd).items():
+            outcome = build_outcome(rgb, var, p_var, list(vs))
+            count = int(prop * prop_factor)
+            assert count == (prop * prop_factor), "[make_relation_graph] Select correct 'prop_factor'"
+            print(f"Outcome: {outcome}, count = {count}")
+            rgb.add_outcome(outcome, count)
 
+    rel_graph = rgb.build()
+    rel_graph.visualize_outcomes()
+    # rel_graph.folded_graph().visualize()
+
+    return rel_graph
 
 
 
@@ -258,7 +303,7 @@ def make_relation_graph() -> RelationGraph:
 
 
 if __name__ == '__main__':
-    bn = make_bayes_network()
+    # bn = make_bayes_network()
     rg = make_relation_graph()
     # comparing_variable_joint_probability(mn, rg)
     # comparing_inference(mn, rg)

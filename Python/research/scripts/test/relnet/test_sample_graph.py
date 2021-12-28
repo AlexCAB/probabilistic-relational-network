@@ -209,6 +209,14 @@ class TestSampleGraphBuilder(unittest.TestCase):
         self.assertEqual(js_2.nodes, frozenset({self.a_1, self.b_1}))
         self.assertEqual(js_2.edges, frozenset({self.e_1}))
 
+        sgb_3 = SampleGraphBuilder(self.builder, "b_3")
+        s_4 = SampleGraph(self.builder, frozenset({self.b_1}), frozenset({}), "s_4")
+
+        js_3 = sgb_3.join_sample(s_4).build()
+
+        self.assertEqual(js_3.nodes, frozenset({self.b_1}))
+        self.assertEqual(js_3.edges, frozenset({}))
+
         with self.assertRaises(AssertionError):  # Edge conflict (same endpoints with different relation)
             sgb_1.join_sample(s_2)
 

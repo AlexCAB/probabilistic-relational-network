@@ -229,9 +229,11 @@ class SampleGraphBuilder:
         if sample.edges:
             join_edges(set(sample.edges))
         else:  # Single node graph
-            assert len(sample.nodes) == 1 and sample.nodes.issubset(self._nodes), \
+            assert len(sample.nodes) == 1 and (sample.nodes.issubset(self._nodes) or not self._nodes), \
                 f"[SampleGraphBuilder.join_sample] Single node sample can be joined only " \
-                f"if this builder have its node, node {sample.nodes} not in self nodes {self._nodes}"
+                f"if this builder have its node or empty, node {sample.nodes} not in self nodes {self._nodes}"
+            if not self._nodes:
+                self._nodes.update(sample.nodes)
         return self
 
     def build(self) -> 'SampleGraph':

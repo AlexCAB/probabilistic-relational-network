@@ -17,11 +17,8 @@ author: CAB
 website: github.com/alexcab
 created: 2021-10-12
 """
-
+from math import isclose
 from typing import Any, Dict, Tuple, List
-
-from pgmpy.factors.discrete import DiscreteFactor
-from pgmpy.models import MarkovNetwork
 
 from scripts.relnet.graph_components import DirectedRelation
 from scripts.relnet.inference_graph import InferenceGraph
@@ -32,6 +29,8 @@ from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 
 from scripts.relnet.sample_graph import SampleGraph
+from itertools import product
+
 
 net_config = {
     'D': (2, [[.6], [.4]], None, None),  # Difficulty
@@ -55,7 +54,7 @@ def make_bayes_network() -> BayesianNetwork:
         for var, (var_card, values, e_var, e_card) in net_config.items()]
 
     for cpd in all_cpd:
-        print(f"bayes_cpd:\n{cpd}")
+        print(f"[make_bayes_network] bayes_cpd:\n{cpd}")
 
     model = BayesianNetwork([('D', 'G'), ('I', 'G'), ('I', 'S'), ('G', 'L')])
     model.add_cpds(*all_cpd)
@@ -63,22 +62,22 @@ def make_bayes_network() -> BayesianNetwork:
     return model
 
 
-def value_combination(variables: List[Tuple[str, int]]) -> List[List[str]]:
+def _value_combination(variables: List[Tuple[str, int]]) -> List[List[str]]:
     (var, card) = variables[0]
     if len(variables) > 1:
-        return [[f"{var}({j})"] + vs for j in range(0, card) for vs in value_combination(variables[1:])]
+        return [[f"{var}({j})"] + vs for j in range(0, card) for vs in _value_combination(variables[1:])]
     else:
         return [[f"{var}({j})"] for j in range(0, card)]
 
 
-def value_map_from_cpd(
+def _value_map_from_cpd(
         var: str, card: int, p_var: List[str], p_card: List[int], cpd: List[List[float]]
 ) -> Dict[frozenset[str], float]:
     values = {}
 
     for i in range(0, card):
         if p_var and p_card:
-            p_vs = [[f"{var}({i})"] + vs for vs in value_combination(list(zip(p_var, p_card)))]
+            p_vs = [[f"{var}({i})"] + vs for vs in _value_combination(list(zip(p_var, p_card)))]
             for v, p in list(zip(p_vs, cpd[i])):
                 values[frozenset(v)] = p
         else:
@@ -87,7 +86,7 @@ def value_map_from_cpd(
     return values
 
 
-def build_outcome(rgb: RelationGraphBuilder, var: str, p_var: List[str], vs: List[str]) -> SampleGraph:
+def _build_outcome(rgb: RelationGraphBuilder, var: str, p_var: List[str], vs: List[str]) -> SampleGraph:
     if p_var:
         o_builder = rgb.sample_builder()
         for p_v in p_var:
@@ -96,7 +95,7 @@ def build_outcome(rgb: RelationGraphBuilder, var: str, p_var: List[str], vs: Lis
                 DirectedRelation(p_v, var, "r"))
         return o_builder.build()
     else:
-        assert len(vs) == 1, f"[make_relation_graph] Expect exactly 1 value but got: {vs}"
+        assert len(vs) == 1, f"[_build_outcome] Expect exactly 1 value but got: {vs}"
         return rgb.sample_builder().build_single_node(var, vs[0])
 
 
@@ -106,206 +105,204 @@ def make_relation_graph() -> RelationGraph:
         relations={"r"})
 
     for var, (card, cpd, p_var, p_card) in net_config.items():
-        for vs, prop in value_map_from_cpd(var, card, p_var, p_card, cpd).items():
-            outcome = build_outcome(rgb, var, p_var, list(vs))
+        for vs, prop in _value_map_from_cpd(var, card, p_var, p_card, cpd).items():
+            outcome = _build_outcome(rgb, var, p_var, list(vs))
             count = int(prop * prop_factor)
             assert count == (prop * prop_factor), "[make_relation_graph] Select correct 'prop_factor'"
-            print(f"Outcome: {outcome}, count = {count}")
+            print(f"[make_relation_graph] Outcome: {outcome}, count = {count}")
             rgb.add_outcome(outcome, count)
 
     rel_graph = rgb.build()
-    rel_graph.visualize_outcomes()
+    print(f"[make_relation_graph] rel_graph:\n{rel_graph.print_samples()}")
+    # rel_graph.visualize_outcomes()
     # rel_graph.folded_graph().visualize()
 
     return rel_graph
 
 
+def _value_map_from_factor(factor: DiscreteFactor) -> Dict[frozenset[str], float]:
+    return {frozenset(vs): factor.get_value(**{v[0]: int(v[2]) for v in vs})
+            for vs in _value_combination(list(zip(factor.variables, factor.cardinality)))}
 
 
+def _value_map_from_graph(graph: RelationGraph) -> Dict[frozenset[str], float]:
+    return {frozenset(v for _, v in o.values()): c for o, c in graph.outcomes.items()}
 
-#
-# def normalize(values: Dict[Any, int]) -> Dict[Any, float]:
-#     total = float(sum(values.values()))
-#     return {k: v / total for k, v in values.items()}
-#
-#
-# def get_markov_prop(factor: DiscreteFactor) -> Dict[Tuple[int, int, int], float]:
-#     fc = factor.copy()
-#     fc.normalize()
-#     return {
-#         (a, b, c, d): fc.get_value(A=a, B=b, C=c, D=d)
-#         for a, b, c, d in joined_values
-#         if factor.get_value(A=a, B=b, C=c, D=d) > 0}
-#
-#
-# def get_relation_graph_prop(relation_graph: RelationGraph) -> Dict[Tuple[int, int, int], float]:
-#     all_counts = {(a, b, c, d):  relation_graph.find_for_values(
-#         {("A", f"A({a})"), ("B", f"B({b})"), ("C", f"C({c})"), ("D", f"D({d})")})
-#         for a, b, c, d in joined_values}
-#     return normalize({k: float(c.items().pop()[1]) for k, c in all_counts.items() if c})
-#
-#
-# def comparing_variable_joint_probability(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> None:
-#     ab_factor: DiscreteFactor = markov_net.factors[0].copy()
-#     bc_factor: DiscreteFactor = markov_net.factors[1].copy()
-#     cd_factor: DiscreteFactor = markov_net.factors[2].copy()
-#     da_factor: DiscreteFactor = markov_net.factors[3].copy()
-#
-#     joint_markov: DiscreteFactor = ab_factor * bc_factor * cd_factor * da_factor
-#     joint_relation_graph: RelationGraph = rel_graph.joined_on_variables()
-#
-#     print(f"Joint markov:\n{joint_markov}")
-#     print(f"Joint relation graph:\n{joint_relation_graph.print_samples()}")
-#     # joint_relation_graph.visualize_outcomes()
-#
-#     joint_markov.normalize()
-#
-#     joint_markov_prop = get_markov_prop(joint_markov)
-#     joint_relation_graph_prop = get_relation_graph_prop(joint_relation_graph)
-#
-#     print(f"Joint markov prop:         {joint_markov_prop}")
-#     print(f"Joint relation graph prop: {joint_relation_graph_prop}")
-#
-#     assert joint_markov_prop == joint_relation_graph_prop, "Expect evaluated probabilities to be same"
-#
-#
-# def comparing_inference(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> None:
-#     ab_factor: DiscreteFactor = markov_net.factors[0].copy()
-#     bc_factor: DiscreteFactor = markov_net.factors[1].copy()
-#     cd_factor: DiscreteFactor = markov_net.factors[2].copy()
-#     da_factor: DiscreteFactor = markov_net.factors[3].copy()
-#
-#     print(f"ab_factor =\n{ab_factor}")
-#     print(f"da_factor =\n{da_factor}")
-#
-#     ab_factor.set_value(0, A=1, B=0)
-#     ab_factor.set_value(0, A=1, B=1)
-#     da_factor.set_value(0, A=1, D=0)
-#     da_factor.set_value(0, A=1, D=1)
-#
-#     print(f"After inference on E=A_0, ab_factor =\n{ab_factor}")
-#     print(f"After inference on E=A_0, da_factor =\n{da_factor}")
-#
-#     joint_markov: DiscreteFactor = ab_factor * bc_factor * cd_factor * da_factor
-#
-#     print(f"joint_markov =\n{joint_markov}")
-#
-#     evidence = rel_graph.sample_builder().build_single_node("A", "A(0)")
-#     inference_on_a_0 = rel_graph.inference(evidence)
-#
-#     print(f"Inference graph on A_0:\n{inference_on_a_0.print_samples()}")
-#     # inference_on_a_0.visualize_outcomes()
-#
-#     joint_inference_graph: InferenceGraph = inference_on_a_0.joined_on_variables()
-#
-#     print(f"Join inference graph on A_0:\n{joint_inference_graph.print_samples()}")
-#     # joint_inference_graph.visualize_outcomes()
-#
-#     joint_markov_prop = get_markov_prop(joint_markov)
-#     joint_inference_prop = get_relation_graph_prop(joint_inference_graph.relation_graph())
-#
-#     print(f"joint_markov_prop = {joint_markov_prop}")
-#     print(f"joint_inference_prop = {joint_inference_prop}")
-#
-#     assert joint_markov_prop == joint_inference_prop, "Expect evaluated probabilities to be same"
-#
-#
-# def markov_d_separation(markov_net: MarkovNetwork) -> None:
-#     ab_factor: DiscreteFactor = markov_net.factors[0].copy()
-#     bc_factor: DiscreteFactor = markov_net.factors[1].copy()
-#     cd_factor: DiscreteFactor = markov_net.factors[2].copy()
-#     da_factor: DiscreteFactor = markov_net.factors[3].copy()
-#
-#     ab_factor.set_value(0, A=1, B=0)
-#     ab_factor.set_value(0, A=1, B=1)
-#     da_factor.set_value(0, A=1, D=0)
-#     da_factor.set_value(0, A=1, D=1)
-#     bc_factor.set_value(0, C=1, B=0)
-#     bc_factor.set_value(0, C=1, B=1)
-#     cd_factor.set_value(0, C=1, D=0)
-#     cd_factor.set_value(0, C=1, D=1)
-#
-#     print(f"After inference on E=[A_0,C_0], ab_factor =\n{ab_factor}")
-#     print(f"After inference on E=[A_0,C_0], bc_factor =\n{bc_factor}")
-#     print(f"After inference on E=[A_0,C_0], cd_factor =\n{cd_factor}")
-#     print(f"After inference on E=[A_0,C_0], da_factor =\n{da_factor}")
-#
-#     joint_markov_ac: DiscreteFactor = ab_factor * bc_factor * cd_factor * da_factor
-#
-#     print(f"joint_markov_ac =\n{joint_markov_ac}")
-#
-#     margin_ac_b = joint_markov_ac.copy()
-#     margin_ac_b.marginalize(['A', 'C', 'D'])
-#     margin_ac_d = joint_markov_ac.copy()
-#     margin_ac_d.marginalize(['A', 'B', 'C'])
-#
-#     print(f"margin_ac_b =\n{margin_ac_b}")
-#     print(f"margin_ac_d =\n{margin_ac_d}")
-#
-#     da_factor.set_value(0, D=1, A=0)
-#     da_factor.set_value(0, D=1, A=1)
-#     cd_factor.set_value(0, D=1, C=0)
-#     cd_factor.set_value(0, D=1, C=1)
-#
-#     print(f"After inference on E=[A_0,C_0,D_0], da_factor =\n{da_factor}")
-#     print(f"After inference on E=[A_0,C_0,D_0], cd_factor =\n{cd_factor}")
-#
-#     joint_markov_acb: DiscreteFactor = ab_factor * bc_factor * cd_factor * da_factor
-#
-#     print(f"joint_markov_acb =\n{joint_markov_acb}")
-#
-#     margin_acb_b = joint_markov_acb.copy()
-#     margin_acb_b.marginalize(['A', 'C', 'D'])
-#
-#     print(f"margin_acb_b =\n{margin_acb_b}")
-#
-#     margin_ac_b.normalize()
-#     margin_acb_b.normalize()
-#
-#     print(f"margin_ac_b.normalize =\n{margin_ac_b}")
-#     print(f"margin_acb_b.normalize =\n{margin_acb_b}")
-#
-#     assert margin_ac_b == margin_acb_b, "Expect evaluated probabilities to be same"
-#
-#
-# def relation_graph_d_separation(rel_graph: RelationGraph) -> None:
-#     inference_on_a: InferenceGraph = rel_graph.inference(
-#         rel_graph.sample_builder().build_single_node("A", "A(0)"))
-#     inference_on_ac: InferenceGraph = inference_on_a.relation_graph().inference(
-#         rel_graph.sample_builder().build_single_node("C", "C(0)"))
-#
-#     print(f"Inference graph on A_0 and C_0:\n{inference_on_ac.print_samples()}")
-#     # inference_on_ac.visualize_outcomes()
-#
-#     joint_graph_ac: InferenceGraph = inference_on_ac.joined_on_variables()
-#
-#     print(f"Joined inference graph on A_0 and C_0:\n{joint_graph_ac.print_samples()}")
-#     # joint_graph_ac.visualize_outcomes()
-#
-#     inference_on_acd: InferenceGraph = inference_on_ac.relation_graph().inference(
-#         rel_graph.sample_builder().build_single_node("D", "D(0)"))
-#
-#     print(f"Inference graph on A_0 and C_0 and D_0:\n{inference_on_acd.print_samples()}")
-#     # inference_on_acd.visualize_outcomes()
-#
-#     joint_graph_acd: InferenceGraph = inference_on_acd.joined_on_variables()
-#
-#     print(f"Joined inference graph on A_0 and C_0 and D_0:\n{joint_graph_acd.print_samples()}")
-#     # joint_graph_acd.visualize_outcomes()
-#
-#     marginal_prop_ac = joint_graph_ac.marginal_variables_probability()
-#     marginal_prop_acd = joint_graph_acd.marginal_variables_probability()
-#
-#     print(f"marginal_prop_ac = {marginal_prop_ac}")
-#     print(f"marginal_prop_acd = {marginal_prop_acd}")
-#
-#     assert marginal_prop_ac["B"] == marginal_prop_acd["B"], "Expect evaluated probabilities to be same"
+
+def _normalize(values: Dict[Any, float]) -> Dict[Any, float]:
+    total = float(sum(values.values()))
+    return {k: v / total for k, v in values.items()}
+
+
+def _marginals_from_factor(factor: DiscreteFactor) -> Dict[str, Dict[str, float]]:
+    vs = list(zip(factor.variables, factor.cardinality))
+    vl = len(vs)
+    acc = {}
+
+    for i in range(0, vl):
+        mf = factor.marginalize([v for v, _ in (vs[:i] + vs[i + 1:])], inplace=False)
+        v, c = vs[i]
+        acc[v] = {f"{v}({j})": mf.get_value(**{v: j}) for j in range(0, c)}
+
+    return acc
+
+
+def _compare_margin_map(factor_map: Dict[str, Dict[str, float]], graph_map: Dict[str, Dict[str, float]]) -> None:
+    assert factor_map.keys() == graph_map.keys(), \
+        f"[_compare_margin_map] Keys set of factor_values and graph_values are not " \
+        f"same: {factor_map.keys()} != {graph_map.keys()}"
+
+    for var_k in sorted(factor_map):
+        factor_mar = factor_map[var_k]
+        graph_mar = graph_map[var_k]
+
+        print(f"[_compare_margin_map] At key = {var_k} factor_mar = {factor_mar}, graph_mar = {graph_mar}")
+
+        assert factor_mar.keys() == graph_mar.keys(), \
+            f"[_compare_margin_map] Keys set of factor_mar and graph_mar are not " \
+            f"same: {factor_mar.keys()} != {graph_mar.keys()}"
+
+        for val_k in sorted(factor_mar):
+            assert isclose(factor_mar[val_k], graph_mar[val_k], rel_tol=1e-15, abs_tol=0.0), \
+                f"At key = {var_k}_{val_k} marginal probability is not equals factor_mar = {factor_mar[val_k]}, " \
+                f"graph_mar = {graph_mar[val_k]}"
+
+
+def _compare_values_map(factor_values: Dict[frozenset[str], float], graph_values: Dict[frozenset[str], float]) -> None:
+    assert factor_values.keys() == graph_values.keys(), \
+        f"[_compare_values_map] Keys set of factor_values and graph_values are not " \
+        f"same: {factor_values.keys()} != {graph_values.keys()}"
+
+    for key in sorted(factor_values):
+        factor_val = factor_values[key]
+        graph_val = graph_values[key]
+
+        print(f"[comparing_joint_probability] At key = {key} factor_value = {factor_val}, graph_value = {graph_val}")
+
+        assert isclose(factor_val, graph_val, rel_tol=1e-15, abs_tol=0.0), \
+            f"At key = {key} joint probability is not equals factor_value = {factor_val}, graph_value = {graph_val}"
+
+
+def comparing_joint_probability(bayes_net: BayesianNetwork, rel_graph: RelationGraph) -> None:
+    joint_factor: DiscreteFactor = VariableElimination(bayes_net).query(variables=list(net_config.keys()))
+    joint_graph: RelationGraph = rel_graph.joined_on_variables()
+    joint_factor_len = sum(1 for _ in product(*[range(card) for card in joint_factor.cardinality]))
+    joint_graph_len = len(joint_graph.outcomes.items())
+
+    print(f"[comparing_joint_probability] joint_factor ({joint_factor_len}):\n{joint_factor}")
+    print(f"[comparing_joint_probability] Joint relation graph({joint_graph_len}):\n{joint_graph.print_samples()}")
+    # joint_rgraph.visualize_outcomes()
+
+    assert joint_factor_len == joint_graph_len, \
+        "Number of joint outcomes should be same as number rows in joint factor"
+
+    factor_values = _value_map_from_factor(joint_factor)
+    graph_values = _normalize(_value_map_from_graph(joint_graph))
+
+    _compare_values_map(factor_values, graph_values)
+
+    factor_marginals = _marginals_from_factor(joint_factor)
+    graph_marginals = joint_graph.marginal_variables_probability()
+
+    _compare_margin_map(factor_marginals, graph_marginals)
+
+
+def _run_inference_on(
+        variables: List[str], bayes_net: BayesianNetwork, rel_graph: RelationGraph
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, float]]]:
+    inf_factor_i: DiscreteFactor = VariableElimination(bayes_net).query(
+            variables=(list(net_config.keys() - variables)),
+            evidence={v: 0 for v in variables})
+    inf_graph_i = rel_graph
+
+    for v in variables:
+        if isinstance(inf_graph_i, InferenceGraph):
+            inf_graph_i = inf_graph_i.relation_graph()
+        inf_graph_i = inf_graph_i \
+            .inference(rel_graph.sample_builder().build_single_node(v, f"{v}(0)")) \
+            .joined_on_variables()
+
+    return _marginals_from_factor(inf_factor_i), inf_graph_i.marginal_variables_probability()
+
+
+def comparing_inference(bayes_net: BayesianNetwork, rel_graph: RelationGraph) -> None:
+    margin_factor_i, margin_graph_i = _run_inference_on(['I'], bayes_net, rel_graph)
+
+    print(f"[comparing_inference] margin_factor_i = {margin_factor_i}")
+    print(f"[comparing_inference] margin_graph_i = {margin_graph_i}")
+
+    margin_graph_i.pop('I')
+    _compare_margin_map(margin_factor_i, margin_graph_i)
+
+    margin_factor_ig, margin_graph_ig = _run_inference_on(['I', 'G'], bayes_net, rel_graph)
+
+    print(f"[comparing_inference] margin_factor_ig = {margin_factor_ig}")
+    print(f"[comparing_inference] margin_graph_ig = {margin_graph_ig}")
+
+    margin_graph_ig.pop('I')
+    margin_graph_ig.pop('G')
+    _compare_margin_map(margin_factor_ig, margin_graph_ig)
+
+
+def comparing_d_separation(rel_graph: RelationGraph) -> None:
+    joint_graph: RelationGraph = rel_graph.joined_on_variables()
+    graph_marginals = joint_graph.marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] Joint relation graph:\n{joint_graph.print_samples()}")
+    print(f"[comparing_d_separation_v_shape] graph_marginals = {graph_marginals}")
+
+    margin_graph_i = rel_graph \
+        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .joined_on_variables()\
+        .marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] margin_graph_i = {margin_graph_i}")
+
+    assert graph_marginals['D'] == margin_graph_i['D'], \
+        "Variable D should not impacted in case variable G is not observed"
+    assert graph_marginals['S'] != margin_graph_i['S'], \
+        "Variable S should be impacted in case variable I is observed"
+
+    inf_graph_g = rel_graph \
+        .inference(rel_graph.sample_builder().build_single_node('G', f"G(0)")) \
+        .joined_on_variables()
+    margin_graph_g = inf_graph_g.marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] margin_graph_g = {margin_graph_g}")
+
+    margin_graph_gi = inf_graph_g \
+        .relation_graph()\
+        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .joined_on_variables() \
+        .marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] margin_graph_gi = {margin_graph_gi}")
+
+    assert margin_graph_g['D'] != margin_graph_gi['D'], \
+        "Variable D should be impacted by variable I  in case variable G is observed"
+
+    inf_graph_l = rel_graph \
+        .inference(rel_graph.sample_builder().build_single_node('L', f"L(0)")) \
+        .joined_on_variables()
+    margin_graph_l = inf_graph_l.marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] margin_graph_l = {margin_graph_l}")
+
+    margin_graph_li = inf_graph_l \
+        .relation_graph() \
+        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .joined_on_variables() \
+        .marginal_variables_probability()
+
+    print(f"[comparing_d_separation_v_shape] margin_graph_li = {margin_graph_li}")
+
+    assert margin_graph_l['D'] != margin_graph_li['D'], \
+        "Variable D should be impacted by variable I in case variable L is observed"
 
 
 if __name__ == '__main__':
-    # bn = make_bayes_network()
+    bn = make_bayes_network()
     rg = make_relation_graph()
-    # comparing_variable_joint_probability(mn, rg)
-    # comparing_inference(mn, rg)
-    # markov_d_separation(mn)
-    # relation_graph_d_separation(rg)
+    comparing_joint_probability(bn, rg)
+    comparing_inference(bn, rg)
+    comparing_d_separation(rg)

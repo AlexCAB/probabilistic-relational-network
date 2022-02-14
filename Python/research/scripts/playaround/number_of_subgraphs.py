@@ -44,6 +44,8 @@ def make_all_sub_graphs(n: int) -> Network:
 
     types = ["AB", "BA"]
 
+    print(f"types = {types}")
+
     # Generate indices for building of sub-playaround
 
     index_acc = [-1 for _ in range(0, len(edges))]
@@ -60,12 +62,17 @@ def make_all_sub_graphs(n: int) -> Network:
     # print(f"indices = {indices}")
     print(f"len(indices) = {len(indices)}")
 
-    counted_size = ((len(types) + 1) ** ((n * (n - 1)) / 2)) + n - 1
+    built_size = len(indices) + len(node_ids) + 1  # Plus empty graph
 
-    print(f"counted_size = {counted_size}")
+    counted_size = ((len(types) + 1) ** ((n * (n - 1)) / 2)) + n
+
+    print(f"counted_size = {counted_size}, built_size = {built_size}")
 
     assert len(set([tuple(i) for i in indices])) == len(indices), \
         f"expect indices to be unique ({len(set(indices))} != {len(indices)})"
+
+    assert built_size == counted_size, \
+        f"built_size should be same as counted_size ({built_size} != {counted_size})"
 
     # Build sub-graphs
 
@@ -97,7 +104,7 @@ def make_all_sub_graphs(n: int) -> Network:
 
 
 def main():
-    net = make_all_sub_graphs(3)
+    net = make_all_sub_graphs(4)
     net.show_buttons(filter_=['physics'])
     net.show("number_of_subgraphs.html")
 

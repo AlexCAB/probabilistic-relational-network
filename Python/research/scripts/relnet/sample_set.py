@@ -18,6 +18,7 @@ website: github.com/alexcab
 created: 2021-11-19
 """
 
+from math import isclose
 from typing import Dict, Set, Any, Optional, Tuple, Callable, List
 
 from .graph_components import SampleGraphComponentsProvider
@@ -65,9 +66,8 @@ class SampleSet(Samples):
             components_provider: SampleGraphComponentsProvider,
             samples: Dict[SampleGraph, int]
     ):
-        super(SampleSet, self).__init__(components_provider, samples)
-        self._samples: Dict[SampleGraph, int] = samples
-        self.length: int = sum(samples.values())
+        super(SampleSet, self).__init__(components_provider, samples.copy())
+        self.length: int = sum(self._samples.values())
 
     def __len__(self) -> int:
         return self.length
@@ -85,7 +85,7 @@ class SampleSet(Samples):
         Create SampleSetBuilder with all samples that in this sample set
         :return: SampleSetBuilder with all samples
         """
-        return SampleSetBuilder(self._components_provider, {o: c for o, c in self._samples.items()})
+        return SampleSetBuilder(self._components_provider, self._samples)
 
     def union(self, other: 'SampleSet'):
         """
@@ -172,6 +172,18 @@ class SampleSet(Samples):
                     var_acc[node.variable] = node.value
         return True
 
+    def probabilities(self) -> Set[Tuple[SampleGraph, float]]:
+        """
+        Calculate and return probabilities of the samples (sum to 1)
+        :return: Set[(SampleGraph, probability)]
+        """
+        props = {(o, c / self.length) for o, c in self._samples.items()}
+        p_sum = sum([p for _, p in props])
+        assert \
+            isclose(p_sum, 1.0, rel_tol=1e-9, abs_tol=0.0), \
+            f"[SampleSet.probabilities] Expect all sample props to sum to 1 but got {p_sum}"
+        return props
+
 
 class SampleSetBuilder(Samples):
     """
@@ -183,7 +195,7 @@ class SampleSetBuilder(Samples):
             components_provider: SampleGraphComponentsProvider,
             samples: Optional[Dict[SampleGraph, int]] = None
     ):
-        super(SampleSetBuilder, self).__init__(components_provider, samples if samples else {})
+        super(SampleSetBuilder, self).__init__(components_provider, samples.copy() if samples else {})
 
     def __repr__(self):
         return f"SampleSetBuilder(length = {self.length()})"
@@ -193,7 +205,7 @@ class SampleSetBuilder(Samples):
         To copy this SampleSetBuilder
         :return: new sample set builder
         """
-        return SampleSetBuilder(self._components_provider, self._samples.copy())
+        return SampleSetBuilder(self._components_provider, self._samples)
 
     def add(self, sample: SampleGraph, count: int) -> 'SampleSetBuilder':
         """

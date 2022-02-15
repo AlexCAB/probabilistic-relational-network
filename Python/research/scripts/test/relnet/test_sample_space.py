@@ -60,13 +60,6 @@ class TestSampleSpace(unittest.TestCase):
             (("a", "1"), 1),
             (("a", "2"), 2)}))
 
-    def test_disjoint_distribution(self):
-        self.assertEqual(
-            self.ss_1.disjoint_distribution(),
-            {("a", "1"): 0.4444444444444444,
-             ("a", "2"): 0.2222222222222222,
-             ("b", "2"): 0.3333333333333333})
-
     def test_marginal_variables_probability(self):
         self.assertEqual(
             self.ss_1.marginal_variables_probability(),
@@ -76,6 +69,15 @@ class TestSampleSpace(unittest.TestCase):
         self.assertEqual(
             self.ss_1.marginal_variables_probability({"a"}),
             {"a": {"1": 0.6666666666666666, "2": 0.3333333333333333}})
+
+        self.assertEqual(
+            self.ss_1.marginal_variables_probability(unobserved=True),
+            {"a": {"1": 0.6666666666666666, "2": 0.3333333333333333, "u": 0.0},
+             "b": {"2": 0.5, "u": 0.5}})
+
+        self.assertEqual(
+            self.ss_1.marginal_variables_probability({"a"}, unobserved=True),
+            {"a": {"1": 0.6666666666666666, "2": 0.3333333333333333, "u": 0.0}})
 
     def test_included_variables(self):
         self.assertEqual(

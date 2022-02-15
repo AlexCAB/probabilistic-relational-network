@@ -154,6 +154,11 @@ class TestSampleSet(unittest.TestCase):
         self.assertFalse(self.ss_1.is_all_values_match())
         self.assertTrue(self.ss_2.is_all_values_match())
 
+    def test_probabilities(self):
+        self.assertEqual(
+            self.ss_2.probabilities(),
+            {(self.o_3, 3 / (3 + 4)), (self.o_4, 4 / (3 + 4))})
+
 
 class TestSampleSetBuilder(unittest.TestCase):
 

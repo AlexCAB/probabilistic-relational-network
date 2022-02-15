@@ -60,6 +60,17 @@ class SampleGraphBuilder:
         self._name = name
         return self
 
+    def build_empty(self) -> 'SampleGraph':
+        """
+        Will build sample graph which contains no nodes
+        :return: single node sample graph
+        """
+        return SampleGraph(
+            self._components_provider,
+            frozenset({}),
+            frozenset({}),
+            self._name)
+
     def build_single_node(self, variable: Any, value: Any) -> 'SampleGraph':
         """
         Will build sample graph which contains single node with given variable and value
@@ -299,10 +310,12 @@ class SampleGraph:
         """
         if self.edges:
             return "{" + "; ".join(sorted([str(e) for e in self.edges])) + "}"
-        else:
+        elif self.nodes:
             return "{" + str(list(self.nodes)[0]) + "}"
+        else:
+            return "{}"
 
-    def edges_set_view(self) -> Union[frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]], Tuple[Any, Any]]:
+    def edges_set_view(self) -> Union[frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]], Tuple[Any, Any], None]:
         """
         Build and return this sample graph in form of simple edges (same format as used in
         SampleGraphBuilder.build_from_edges). I case graph is single node will return just this node
@@ -311,9 +324,11 @@ class SampleGraph:
         if self.edges:
             return frozenset({
                 (frozenset({(n.variable, n.value) for n in e.endpoints}), e.relation) for e in self.edges})
-        else:
+        elif self.nodes:
             single_node = list(self.nodes)[0]
             return single_node.variable, single_node.value
+        else:
+            return None
 
     def visualize(self, height="1024px", width="1024px") -> None:
         """

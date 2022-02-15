@@ -19,7 +19,7 @@ created: 2021-11-09
 """
 
 import os
-from math import prod
+from math import prod, isclose
 from typing import Dict, Set, Any, Optional, Tuple, Union, List
 from pyvis.network import Network
 
@@ -68,29 +68,13 @@ class SampleSpace:
         """
         return frozenset({(o.edges_set_view(), c) for o, c in self.outcomes.items()})
 
-    def disjoint_distribution(self) -> Dict[Tuple[str, str], float]:
+    def marginal_variables_probability(
+            self, variables: Optional[Set[Any]] = None, unobserved: bool = False
+    ) -> Dict[str, Dict[str, float]]:
         """
-        Calculate probability of appear for each value of each variable base on set of outcomes,
-        as if they are independent events.
-        :return: Dict[(variable, value), probability_of_appear]
-        """
-        acc: Dict[ValueNode, int] = {}
-
-        for outcome, count in self.outcomes.items():
-            for node in outcome.nodes:
-                if node in acc:
-                    acc[node] += count
-                else:
-                    acc[node] = count
-
-        total = sum(acc.values())
-
-        return {(k.variable, k.value): v / total for k, v in acc.items()}
-
-    def marginal_variables_probability(self, variables: Optional[Set[Any]] = None) -> Dict[str, Dict[str, float]]:
-        """
-        Count marginal distribution for given set of variables
+        Count marginal distribution for given set of variables (including unobserved values)
         :param variables: List of variable to marginalize, if no then all will marginalized
+        :param unobserved: if True unobserved values will added
         :return: Dict[variable, Dict[value, probability]]
         """
         variables_to_check = variables if variables else {v for v, _ in self._components_provider.variables()}
@@ -106,9 +90,24 @@ class SampleSpace:
                     else:
                         group_acc[in_var] = {in_val: count}
 
-        for var, values in group_acc.items():
-            count_sum = sum(values.values())
-            norm_acc[var] = {v: c / count_sum for v, c in values.items()}
+        for in_val, values in group_acc.items():
+            c_sum = sum(values.values())
+            assert \
+                0 <= c_sum <= self.outcomes.length, \
+                f"[SampleSpace.marginal_variables_probability] Expect sum of probability of variable '{in_val}' " \
+                f"value to be within [0, {self.outcomes.length}] but got {c_sum}"
+            if unobserved:
+                values['u'] = self.outcomes.length - c_sum
+                norm_acc[in_val] = {v: p / self.outcomes.length for v, p in values.items()}
+            else:
+                norm_acc[in_val] = {v: p / c_sum for v, p in values.items()}
+
+        for in_val, values in norm_acc.items():
+            p_sum = sum(values.values())
+            assert \
+                isclose(p_sum, 1.0, rel_tol=1e-9, abs_tol=0.0), \
+                f"[SampleSpace.marginal_variables_probability] Expect sum of probability of variable '{in_val}' " \
+                f"to be close to 1 but got {p_sum}"
 
         return norm_acc
 

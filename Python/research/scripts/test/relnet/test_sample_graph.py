@@ -69,6 +69,11 @@ class TestSampleGraphBuilder(unittest.TestCase):
             .build()
         self.assertEqual(s_1.name, "s")
 
+    def test_build_empty(self):
+        s_1 = SampleGraphBuilder(self.builder) \
+            .build_empty()
+        self.assertEqual(s_1.nodes, frozenset({}))
+
     def test_build_single_node(self):
         s_1 = SampleGraphBuilder(self.builder) \
             .build_single_node("a", "1")

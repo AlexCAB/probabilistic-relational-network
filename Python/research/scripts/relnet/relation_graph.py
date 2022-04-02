@@ -21,7 +21,7 @@ created: 2021-08-09
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
 
 from .graph_components import SampleGraphComponentsProvider, BuilderComponentsProvider
-from .inference_graph import InferenceGraph
+from .conditional_graph import ConditionalGraph
 from .sample_graph import SampleGraph, SampleGraphBuilder
 from .sample_space import SampleSpace
 from .sample_set import SampleSet, SampleSetBuilder
@@ -230,7 +230,7 @@ class RelationGraph(SampleSpace):
             "relations": {str(r) for r in self.relations},
         }
 
-    def inference(self, evidence: SampleGraph, name: Optional[str] = None) -> InferenceGraph:
+    def conditional_graph(self, evidence: SampleGraph, name: Optional[str] = None) -> ConditionalGraph:
         """
         Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
         and pack in InferenceGraph instance.
@@ -246,10 +246,10 @@ class RelationGraph(SampleSpace):
             outcome: count for outcome, count in self.outcomes.items()
             if evidence.is_subgraph(outcome) or evidence.included_variables.isdisjoint(outcome.included_variables)}
 
-        return InferenceGraph(
+        return ConditionalGraph(
             self._components_provider,
             evidence,
-            name if name else f"inference_of_{self.name}",
+            name if name else f"conditional_of_{self.name}",
             SampleSet(self._components_provider, selected_outcomes))
 
     def joined_on_variables(self, variables: Optional[Set[Any]] = None, name: Optional[str] = None) -> 'RelationGraph':

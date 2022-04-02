@@ -330,7 +330,7 @@ class TestRelationGraph(unittest.TestCase):
                 "relations": {"r", "s"},
                 "variables": {"a", "b", "c", "d"}})
 
-    def test_inference(self):
+    def test_conditional_graph(self):
         o_1 = SampleGraphBuilder(self.bcp).set_name("o_1")\
             .build_single_node("b", "2")
         o_2 = SampleGraphBuilder(self.bcp).set_name("o_2")\
@@ -362,7 +362,7 @@ class TestRelationGraph(unittest.TestCase):
             .add_relation({("c", "3"), ("a", "1")}, "s") \
             .build()
 
-        ig_1 = rg_1.inference(q_1, "ig_1")
+        ig_1 = rg_1.conditional_graph(q_1, "ig_1")
 
         self.assertEqual(ig_1.name, "ig_1")
 
@@ -371,15 +371,15 @@ class TestRelationGraph(unittest.TestCase):
             {(o_1, 1), (o_2, 2), (o_3, 3), (o_4, 4), (o_5, 5)})
 
         self.assertEqual(
-            rg_1.inference(q_2).outcomes.items(),
+            rg_1.conditional_graph(q_2).outcomes.items(),
             {(o_2, 2), (o_4, 4)})
 
         self.assertEqual(
-            rg_1.inference(q_3).outcomes.items(),
+            rg_1.conditional_graph(q_3).outcomes.items(),
             {(o_3, 3), (o_4, 4)})
 
         self.assertEqual(
-            rg_1.inference(q_4).outcomes.items(),
+            rg_1.conditional_graph(q_4).outcomes.items(),
             {(o_5, 5), (o_1, 1)})
 
     def test_joined_on_variables(self):

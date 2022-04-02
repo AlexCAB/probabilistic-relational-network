@@ -21,7 +21,7 @@ from math import isclose
 from typing import Any, Dict, Tuple, List
 
 from scripts.relnet.graph_components import DirectedRelation
-from scripts.relnet.inference_graph import InferenceGraph
+from scripts.relnet.conditional_graph import ConditionalGraph
 from scripts.relnet.relation_graph import RelationGraph, RelationGraphBuilder
 
 from pgmpy.inference import VariableElimination
@@ -216,10 +216,10 @@ def _run_inference_on(
     inf_graph_i = rel_graph
 
     for v in variables:
-        if isinstance(inf_graph_i, InferenceGraph):
+        if isinstance(inf_graph_i, ConditionalGraph):
             inf_graph_i = inf_graph_i.relation_graph()
         inf_graph_i = inf_graph_i \
-            .inference(rel_graph.sample_builder().build_single_node(v, f"{v}(0)")) \
+            .conditional_graph(rel_graph.sample_builder().build_single_node(v, f"{v}(0)")) \
             .joined_on_variables()
 
     return _marginals_from_factor(inf_factor_i), inf_graph_i.marginal_variables_probability()
@@ -252,7 +252,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
     print(f"[comparing_d_separation_v_shape] graph_marginals = {graph_marginals}")
 
     margin_graph_i = rel_graph \
-        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
         .joined_on_variables()\
         .marginal_variables_probability()
 
@@ -264,7 +264,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
         "Variable S should be impacted in case variable I is observed"
 
     inf_graph_g = rel_graph \
-        .inference(rel_graph.sample_builder().build_single_node('G', f"G(0)")) \
+        .conditional_graph(rel_graph.sample_builder().build_single_node('G', f"G(0)")) \
         .joined_on_variables()
     margin_graph_g = inf_graph_g.marginal_variables_probability()
 
@@ -272,7 +272,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     margin_graph_gi = inf_graph_g \
         .relation_graph()\
-        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
         .joined_on_variables() \
         .marginal_variables_probability()
 
@@ -282,7 +282,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
         "Variable D should be impacted by variable I  in case variable G is observed"
 
     inf_graph_l = rel_graph \
-        .inference(rel_graph.sample_builder().build_single_node('L', f"L(0)")) \
+        .conditional_graph(rel_graph.sample_builder().build_single_node('L', f"L(0)")) \
         .joined_on_variables()
     margin_graph_l = inf_graph_l.marginal_variables_probability()
 
@@ -290,7 +290,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     margin_graph_li = inf_graph_l \
         .relation_graph() \
-        .inference(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
+        .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
         .joined_on_variables() \
         .marginal_variables_probability()
 

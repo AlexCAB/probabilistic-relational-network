@@ -23,7 +23,7 @@ from typing import Any, Dict, Tuple
 from pgmpy.factors.discrete import DiscreteFactor
 from pgmpy.models import MarkovNetwork
 
-from scripts.relnet.inference_graph import InferenceGraph
+from scripts.relnet.conditional_graph import ConditionalGraph
 from scripts.relnet.relation_graph import RelationGraph, RelationGraphBuilder
 
 nodes = ['A', 'B', 'C', 'D']
@@ -149,12 +149,12 @@ def comparing_inference(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> 
     print(f"joint_markov =\n{joint_markov}")
 
     evidence = rel_graph.sample_builder().build_single_node("A", "A(0)")
-    inference_on_a_0 = rel_graph.inference(evidence)
+    inference_on_a_0 = rel_graph.conditional_graph(evidence)
 
     print(f"Inference graph on A_0:\n{inference_on_a_0.print_samples()}")
     # inference_on_a_0.visualize_outcomes()
 
-    joint_inference_graph: InferenceGraph = inference_on_a_0.joined_on_variables()
+    joint_inference_graph: ConditionalGraph = inference_on_a_0.joined_on_variables()
 
     print(f"Join inference graph on A_0:\n{joint_inference_graph.print_samples()}")
     # joint_inference_graph.visualize_outcomes()
@@ -227,26 +227,26 @@ def markov_d_separation(markov_net: MarkovNetwork) -> None:
 
 
 def relation_graph_d_separation(rel_graph: RelationGraph) -> None:
-    inference_on_a: InferenceGraph = rel_graph.inference(
+    inference_on_a: ConditionalGraph = rel_graph.conditional_graph(
         rel_graph.sample_builder().build_single_node("A", "A(0)"))
-    inference_on_ac: InferenceGraph = inference_on_a.relation_graph().inference(
+    inference_on_ac: ConditionalGraph = inference_on_a.relation_graph().conditional_graph(
         rel_graph.sample_builder().build_single_node("C", "C(0)"))
 
     print(f"Inference graph on A_0 and C_0:\n{inference_on_ac.print_samples()}")
     # inference_on_ac.visualize_outcomes()
 
-    joint_graph_ac: InferenceGraph = inference_on_ac.joined_on_variables()
+    joint_graph_ac: ConditionalGraph = inference_on_ac.joined_on_variables()
 
     print(f"Joined inference graph on A_0 and C_0:\n{joint_graph_ac.print_samples()}")
     # joint_graph_ac.visualize_outcomes()
 
-    inference_on_acd: InferenceGraph = inference_on_ac.relation_graph().inference(
+    inference_on_acd: ConditionalGraph = inference_on_ac.relation_graph().conditional_graph(
         rel_graph.sample_builder().build_single_node("D", "D(0)"))
 
     print(f"Inference graph on A_0 and C_0 and D_0:\n{inference_on_acd.print_samples()}")
     # inference_on_acd.visualize_outcomes()
 
-    joint_graph_acd: InferenceGraph = inference_on_acd.joined_on_variables()
+    joint_graph_acd: ConditionalGraph = inference_on_acd.joined_on_variables()
 
     print(f"Joined inference graph on A_0 and C_0 and D_0:\n{joint_graph_acd.print_samples()}")
     # joint_graph_acd.visualize_outcomes()

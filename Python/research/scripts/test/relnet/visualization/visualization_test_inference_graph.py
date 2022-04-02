@@ -31,7 +31,7 @@ def main() -> None:
         .build_sample(lambda b: b.add_relation({("c", "3"), ("a", "1")}, "r").build())
     rg_1 = b_1.build()
     q_1 = b_1.sample_builder().add_relation({("a", "1"), ("b", "2")}, "r").build()
-    ig_1 = rg_1.inference(q_1, "visualization_test_inference_graph")
+    ig_1 = rg_1.conditional_graph(q_1, "visualization_test_conditional_graph")
 
     print(f"rg_1 = {rg_1.describe()}")
     print(f"ig_1 = {ig_1.describe()}")

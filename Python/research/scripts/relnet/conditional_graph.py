@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from .relation_graph import RelationGraphBuilder, RelationGraph
 
 
-class InferenceGraph(SampleSpace):
+class ConditionalGraph(SampleSpace):
     """
     Immutable wrapper of list of selected outcomes
     """
@@ -76,14 +76,17 @@ class InferenceGraph(SampleSpace):
             "included_relations": {str(r) for r in self.included_relations()},
         }
 
-    def joined_on_variables(self, variables: Optional[Set[Any]] = None, name: Optional[str] = None) -> 'InferenceGraph':
+    def joined_on_variables(
+            self, variables: Optional[Set[Any]] = None,
+            name: Optional[str] = None
+    ) -> 'ConditionalGraph':
         """
         Will join over all outcomes and return new inference graph with joined outcomes
         :param variables: set of variables to join on, if None will join on all variables
         :param name: optional name for the joined graph
         :return: new inference graph with joined outcomes
         """
-        return InferenceGraph(
+        return ConditionalGraph(
             self._components_provider,
             self.evidence,
             name if name else self.name,

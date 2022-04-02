@@ -21,13 +21,13 @@ created: 2021-10-28
 import unittest
 
 from scripts.relnet.activation_graph import ActiveNode, ActiveEdge
-from scripts.relnet.inference_graph import InferenceGraph
+from scripts.relnet.conditional_graph import ConditionalGraph
 from scripts.relnet.relation_graph import BuilderComponentsProvider
 from scripts.relnet.sample_graph import SampleGraphBuilder
 from scripts.relnet.sample_space import SampleSet
 
 
-class TestInferenceGraph(unittest.TestCase):
+class TestConditionalGraph(unittest.TestCase):
 
     bcp = BuilderComponentsProvider({"a": {"1", "2"}, "b": {"2", "3"}, "c": {"3", "4"}, "d": {"4", "5"}}, {"r", "s"})
     s_1 = SampleGraphBuilder(bcp) \
@@ -35,7 +35,7 @@ class TestInferenceGraph(unittest.TestCase):
     s_2 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
-    ig_1 = InferenceGraph(bcp, s_1, "ig_1", SampleSet(bcp, {s_1: 1, s_2: 2}))
+    ig_1 = ConditionalGraph(bcp, s_1, "ig_1", SampleSet(bcp, {s_1: 1, s_2: 2}))
 
     def test_init(self):
         self.assertEqual(self.ig_1.evidence, self.s_1)
@@ -70,7 +70,7 @@ class TestInferenceGraph(unittest.TestCase):
             .add_relation({("c", "3"), ("d", "4")}, "r") \
             .build()
 
-        ig_1 = InferenceGraph(self.bcp, e_1, "ig_1",  SampleSet(self.bcp, {o_11: 2, o_12: 3}))
+        ig_1 = ConditionalGraph(self.bcp, e_1, "ig_1",  SampleSet(self.bcp, {o_11: 2, o_12: 3}))
         jg_1 = ig_1.joined_on_variables({"b", "c"}, "jg_1")
 
         self.assertEqual(jg_1.name, "jg_1")
@@ -115,7 +115,7 @@ class TestInferenceGraph(unittest.TestCase):
         q_1_c_weight = ((s_1_3_sim * 3) + (s_1_4_sim * 4)) / 10
         q_1_d_weight = (s_1_4_sim * 4) / 10
 
-        ag_1 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
+        ag_1 = ConditionalGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
             .activation_graph(name="ag_1")
 
         self.assertEqual(ag_1.name, "ag_1")
@@ -134,7 +134,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_2 = InferenceGraph(self.bcp, s_2, "ig_2", SampleSet(self.bcp, {s_2: 2, s_3: 3, s_4: 4})).activation_graph()
+        ag_2 = ConditionalGraph(self.bcp, s_2, "ig_2", SampleSet(self.bcp, {s_2: 2, s_3: 3, s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_2.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -149,7 +149,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_3 = InferenceGraph(self.bcp, s_3, "ig_3", SampleSet(self.bcp, {s_3: 3, s_4: 4})).activation_graph()
+        ag_3 = ConditionalGraph(self.bcp, s_3, "ig_3", SampleSet(self.bcp, {s_3: 3, s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_3.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -164,7 +164,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=False),
         })
 
-        ag_4 = InferenceGraph(self.bcp, s_4, "ig_4", SampleSet(self.bcp, {s_4: 4})).activation_graph()
+        ag_4 = ConditionalGraph(self.bcp, s_4, "ig_4", SampleSet(self.bcp, {s_4: 4})).activation_graph()
 
         self.assertEqual(set(ag_4.nodes), {
             ActiveNode("a", {"1": 1.0, "2": 0}, in_query=True),
@@ -179,7 +179,7 @@ class TestInferenceGraph(unittest.TestCase):
             ActiveEdge({"d", "c"}, {"r": 4}, in_query=True),
         })
 
-        ag_5 = InferenceGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
+        ag_5 = ConditionalGraph(self.bcp, s_1, "ig_1", SampleSet(self.bcp, {s_1: 1, s_2: 2, s_3: 3, s_4: 4}))\
             .activation_graph({"r"})
 
         self.assertEqual(set(ag_5.nodes), {

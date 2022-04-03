@@ -154,7 +154,7 @@ def comparing_inference(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> 
     print(f"Inference graph on A_0:\n{inference_on_a_0.print_samples()}")
     # inference_on_a_0.visualize_outcomes()
 
-    joint_inference_graph: ConditionalGraph = inference_on_a_0.joined_on_variables()
+    joint_inference_graph: RelationGraph = inference_on_a_0.relation_graph().joined_on_variables()
 
     print(f"Join inference graph on A_0:\n{joint_inference_graph.print_samples()}")
     # joint_inference_graph.visualize_outcomes()
@@ -235,7 +235,7 @@ def relation_graph_d_separation(rel_graph: RelationGraph) -> None:
     print(f"Inference graph on A_0 and C_0:\n{inference_on_ac.print_samples()}")
     # inference_on_ac.visualize_outcomes()
 
-    joint_graph_ac: ConditionalGraph = inference_on_ac.joined_on_variables()
+    joint_graph_ac: RelationGraph = inference_on_ac.relation_graph().joined_on_variables()
 
     print(f"Joined inference graph on A_0 and C_0:\n{joint_graph_ac.print_samples()}")
     # joint_graph_ac.visualize_outcomes()
@@ -246,7 +246,7 @@ def relation_graph_d_separation(rel_graph: RelationGraph) -> None:
     print(f"Inference graph on A_0 and C_0 and D_0:\n{inference_on_acd.print_samples()}")
     # inference_on_acd.visualize_outcomes()
 
-    joint_graph_acd: ConditionalGraph = inference_on_acd.joined_on_variables()
+    joint_graph_acd: RelationGraph = inference_on_acd.relation_graph().joined_on_variables()
 
     print(f"Joined inference graph on A_0 and C_0 and D_0:\n{joint_graph_acd.print_samples()}")
     # joint_graph_acd.visualize_outcomes()

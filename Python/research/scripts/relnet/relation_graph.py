@@ -19,6 +19,7 @@ created: 2021-08-09
 """
 
 from typing import List, Dict, Set, Any, Tuple, Optional, Callable
+from math import prod
 
 from .graph_components import SampleGraphComponentsProvider, BuilderComponentsProvider
 from .conditional_graph import ConditionalGraph
@@ -197,24 +198,9 @@ class RelationGraph(SampleSpace):
             outcomes: SampleSet
     ):
         self.name: str = name if name else f"relation_graph_with_{outcomes.length}_outcomes"
-        super().__init__(components_provider, outcomes, self.name)
+        super().__init__(components_provider, outcomes, self.name, evidence=None)
         self.variables: frozenset[Tuple[Any, frozenset[Any]]] = components_provider.variables()
         self.relations: frozenset[Any] = components_provider.relations()
-
-    def __repr__(self):
-        return self.name
-
-    def builder(self) -> RelationGraphBuilder:
-        """
-        Construct new relation graph builder which contains all outcomes from this relation graph
-        :return: new builder instance
-        """
-        return RelationGraphBuilder(
-            {var: set(values) for var, values in self.variables},
-            set(self.relations),
-            self.name,
-            self.outcomes.builder(),
-            self._components_provider)
 
     def describe(self) -> Dict[str, Any]:
         """
@@ -232,11 +218,11 @@ class RelationGraph(SampleSpace):
 
     def conditional_graph(self, evidence: SampleGraph, name: Optional[str] = None) -> ConditionalGraph:
         """
-        Do inference for given query. Will filter out outcomes which is sub-graphs of query graph
+        Do conditioning for given query. Will filter out outcomes that is sub-graphs of query graph
         and pack in InferenceGraph instance.
         :param evidence: and SampleGraph to filter on
         :param name: optional name for the inference graph
-        :return: new instance of InferenceGraph
+        :return: new instance of ConditionalGraph
         """
         assert evidence.is_compatible(self._components_provider), \
             f"[RelationGraphBuilder.add_outcome] Evidence {evidence} is not compatible with this relation graph, " \
@@ -259,7 +245,29 @@ class RelationGraph(SampleSpace):
         :param name: optional name for the joined graph
         :return: new relation graph with joined outcomes
         """
+        join_variables = variables if (variables is not None) else {v for v, _ in self.included_variables()}
+        outcomes_acc: SampleSetBuilder = self.outcomes.builder()
+
+        def cross_join(groups: List[SampleSet], joints: SampleSetBuilder) -> SampleSet:
+            ssb = SampleSetBuilder(self._components_provider)
+            if not groups:  # To join if groups empty
+                joints_set = joints.build()
+                if joints_set and joints_set.is_all_values_match():
+                    joined_sample, counts = joints.build().make_joined_sample()
+                    ssb.add(joined_sample, prod(counts))
+            else:
+                for s, c in groups[0].items():
+                    ssb.add_all(cross_join(groups[1:], joints.copy().add(s, c)))
+            return ssb.build()
+
+        for join_var in join_variables:
+            join_outcomes = outcomes_acc.build().filter_samples(lambda o: join_var in o.included_variables)
+            groped_outcomes = join_outcomes.group_intersecting()
+            joined_outcomes = cross_join(list(groped_outcomes.values()), SampleSetBuilder(self._components_provider))
+            outcomes_acc.remove_all(join_outcomes)
+            outcomes_acc.add_all(joined_outcomes)
+
         return RelationGraph(
             self._components_provider,
             name if name else self.name,
-            self.join_outcomes_on_variable_set(variables))
+            outcomes_acc.build())

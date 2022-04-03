@@ -220,7 +220,7 @@ def _run_inference_on(
             inf_graph_i = inf_graph_i.relation_graph()
         inf_graph_i = inf_graph_i \
             .conditional_graph(rel_graph.sample_builder().build_single_node(v, f"{v}(0)")) \
-            .joined_on_variables()
+            .relation_graph().joined_on_variables()
 
     return _marginals_from_factor(inf_factor_i), inf_graph_i.marginal_variables_probability()
 
@@ -253,7 +253,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     margin_graph_i = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .joined_on_variables()\
+        .relation_graph().joined_on_variables()\
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_i = {margin_graph_i}")
@@ -265,7 +265,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     inf_graph_g = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('G', f"G(0)")) \
-        .joined_on_variables()
+        .relation_graph().joined_on_variables()
     margin_graph_g = inf_graph_g.marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_g = {margin_graph_g}")
@@ -273,7 +273,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
     margin_graph_gi = inf_graph_g \
         .relation_graph()\
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .joined_on_variables() \
+        .relation_graph().joined_on_variables() \
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_gi = {margin_graph_gi}")
@@ -283,7 +283,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     inf_graph_l = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('L', f"L(0)")) \
-        .joined_on_variables()
+        .relation_graph().joined_on_variables()
     margin_graph_l = inf_graph_l.marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_l = {margin_graph_l}")
@@ -291,7 +291,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
     margin_graph_li = inf_graph_l \
         .relation_graph() \
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .joined_on_variables() \
+        .relation_graph().joined_on_variables() \
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_li = {margin_graph_li}")

@@ -26,10 +26,6 @@ from .sample_graph import SampleGraph
 from .sample_space import SampleSpace
 from .sample_set import SampleSet
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .relation_graph import RelationGraphBuilder, RelationGraph
-
 
 class ConditionalGraph(SampleSpace):
     """
@@ -48,22 +44,6 @@ class ConditionalGraph(SampleSpace):
         self.name: str = name
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
-    def __repr__(self):
-        return self.name
-
-    def builder(self) -> 'RelationGraphBuilder':
-        """
-        Construct new relation graph builder which contains all outcomes from this inference graph
-        :return: new builder instance
-        """
-        from scripts.relnet.relation_graph import RelationGraphBuilder
-        return RelationGraphBuilder(
-            None,
-            None,
-            None,
-            self.outcomes.builder(),
-            self._components_provider)
-
     def describe(self) -> Dict[str, Any]:
         """
         Return set of properties of this inference graph
@@ -75,33 +55,6 @@ class ConditionalGraph(SampleSpace):
             "included_variables": {str(v) for v, _ in self.included_variables()},
             "included_relations": {str(r) for r in self.included_relations()},
         }
-
-    def joined_on_variables(
-            self, variables: Optional[Set[Any]] = None,
-            name: Optional[str] = None
-    ) -> 'ConditionalGraph':
-        """
-        Will join over all outcomes and return new inference graph with joined outcomes
-        :param variables: set of variables to join on, if None will join on all variables
-        :param name: optional name for the joined graph
-        :return: new inference graph with joined outcomes
-        """
-        return ConditionalGraph(
-            self._components_provider,
-            self.evidence,
-            name if name else self.name,
-            self.join_outcomes_on_variable_set(variables))
-
-    def relation_graph(self, name: Optional[str] = None) -> 'RelationGraph':
-        """
-        Convert inference graph to relation graph with same set of outcomes
-        :return: new RelationGraph
-        """
-        from .relation_graph import RelationGraph
-        return RelationGraph(
-            self._components_provider,
-            name if name else self.name,
-            self.outcomes)
 
     def activation_graph(self, relation_filter: Set[Any] = None, name: Optional[str] = None) -> ActivationGraph:
         """

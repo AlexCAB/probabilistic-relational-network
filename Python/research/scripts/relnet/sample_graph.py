@@ -277,6 +277,7 @@ class SampleGraph:
                 "{" + '; '.join(sorted([str(e) for e in self.edges] if self.edges else
                                        [str(n) for n in self.nodes])) + "}")
         self.included_variables: frozenset[Any] = frozenset({n.variable for n in nodes})
+        self.is_k_0: bool = not bool(nodes) and not bool(edges)
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
     def __hash__(self):

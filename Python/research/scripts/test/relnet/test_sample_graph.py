@@ -262,12 +262,15 @@ class TestSampleGraph(unittest.TestCase):
         .add_relation({("a", "1"), ("c", "1")}, "g") \
         .add_relation({("a", "1"), ("d", "1")}, "b") \
         .build()
+    s_k_0 = SampleGraph(builder, frozenset({}), frozenset({}), "s_k_0")
 
     def test_init(self):
         self.assertEqual(self.s_1.nodes, frozenset({self.a_1, self.b_1}))
         self.assertEqual(self.s_1.edges, frozenset({self.e_1}))
         self.assertEqual(self.s_1.hash, frozenset({self.a_1, self.b_1, self.e_1}))
         self.assertEqual(self.s_1.name, "s_1")
+        self.assertFalse(self.s_1.is_k_0)
+        self.assertTrue(self.s_k_0.is_k_0)
 
     def test_hash(self):
         self.assertEqual(self.s_1.__hash__(), self.s_1.hash.__hash__())

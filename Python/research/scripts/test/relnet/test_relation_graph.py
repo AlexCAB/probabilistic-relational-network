@@ -300,6 +300,7 @@ class TestRelationGraph(unittest.TestCase):
         {"r", "s"})
     o_1 = SampleGraphBuilder(bcp).set_name("o_1").build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).set_name("o_2").build_single_node("a", "2")
+    o_k_0 = SampleGraphBuilder(bcp).set_name("o_k_0").build_empty()
     rg_1 = RelationGraph(bcp, "rg_1", SampleSet(bcp, {o_1: 1, o_2: 2}))
 
     def test_init(self):
@@ -478,6 +479,40 @@ class TestRelationGraph(unittest.TestCase):
         self.assertEqual(ab_bc_bd_ss.joined_on_variables({"b"}).outcomes, expected_ab_bc_bd_joint_abc)
         self.assertEqual(ab_bc_bd_ss.joined_on_variables({"a", "b"}).outcomes, expected_ab_bc_bd_joint_abc)
         self.assertEqual(ab_bc_bd_ss.joined_on_variables({"a", "b", "c"}).outcomes, expected_ab_bc_bd_joint_abc)
+
+    def test_is_joined(self):
+        o_3 = SampleGraphBuilder(self.bcp).set_name("o_3").build_single_node("b", "3")
+
+        self.assertTrue(
+            RelationGraph(self.bcp, "rg_1", SampleSet(self.bcp, {self.o_1: 1, self.o_2: 2})).is_joined())
+        self.assertFalse(
+            RelationGraph(self.bcp, "rg_2", SampleSet(self.bcp, {self.o_1: 1, o_3: 3})).is_joined())
+
+    def test_is_factorized(self):
+        o_ab_1 = SampleGraphBuilder(self.bcp).set_name("o_ab")\
+            .add_relation({("a", "1"), ("b", "2")}, "r")\
+            .build()
+        o_ab_2 = SampleGraphBuilder(self.bcp).set_name("o_ab") \
+            .add_relation({("a", "2"), ("b", "3")}, "r") \
+            .build()
+        o_bc = SampleGraphBuilder(self.bcp).set_name("o_bc")\
+            .add_relation({("b", "2"), ("c", "3")}, "r")\
+            .build()
+        o_abc = SampleGraphBuilder(self.bcp).set_name("o_abc")\
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+
+        self.assertTrue(
+            RelationGraph(self.bcp, "rg_1", SampleSet(self.bcp, {o_ab_1: 1, o_ab_2: 2})).is_factorized())
+        self.assertTrue(
+            RelationGraph(self.bcp, "rg_2", SampleSet(self.bcp, {o_ab_1: 1, o_bc: 2})).is_factorized())
+        self.assertTrue(
+            RelationGraph(self.bcp, "rg_3", SampleSet(self.bcp, {o_abc: 1})).is_factorized())
+        self.assertFalse(
+            RelationGraph(self.bcp, "rg_4", SampleSet(self.bcp, {o_ab_1: 1, o_abc: 2})).is_factorized())
+        self.assertFalse(
+            RelationGraph(self.bcp, "rg_5", SampleSet(self.bcp, {self.o_k_0: 1, o_abc: 2})).is_factorized())
 
 
 if __name__ == '__main__':

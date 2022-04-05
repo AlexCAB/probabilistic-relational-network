@@ -271,3 +271,39 @@ class RelationGraph(SampleSpace):
             self._components_provider,
             name if name else self.name,
             outcomes_acc.build())
+
+    def is_joined(self) -> bool:
+        """
+        Do check if this relation graph contains joined distribution,
+        i.e. if each outcome contain value from each variable
+        :return: True if this relation graph contains joined distribution, False otherwise
+        """
+        vs = next(iter(self.outcomes.samples())).included_variables if self.outcomes else frozenset({})
+        for o in self.outcomes.samples():
+            if vs != o.included_variables:
+                return False
+        return True
+
+    def is_factorized(self) -> bool:
+        """
+        Do check if this relation graph is factorized, i.e. contains joined sub-graphs
+        :return: True if this relation graph is factorized, False otherwise
+        """
+        endpoint_acc: Set[frozenset[frozenset[Any]]] = set({})
+        for o in self.outcomes.samples():
+            if o.is_k_0:
+                return False
+            ep = o.edges_endpoint_variables()
+            if ep not in endpoint_acc:
+                for aep in endpoint_acc:
+                    if not aep.isdisjoint(ep):
+                        return False
+                endpoint_acc.add(ep)
+        return True
+
+    def make_joined(self) -> 'RelationGraph':
+        """
+        Make relation graph which contains joined distribution from this factorized relation graph
+        :return: New instance of relation graph which contains joined distribution
+        """
+        pass

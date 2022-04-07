@@ -246,3 +246,24 @@ class SampleSpace:
                 ssb.add(s, c)
 
         return ssb.build()
+
+    def factorized(self) -> frozenset[SampleSet]:
+        """
+        Will split outcomes of this sample set by factors, or raise error if this sample set is not factorized
+        :return: set of SampleSet
+        """
+        acc: Dict[frozenset[frozenset[Any]], SampleSetBuilder] = {}
+
+        for o, c in self.outcomes.items():
+            assert not o.is_k_0, \
+                f"[SampleSpace.factorized] Sample spase which contains empty outcome can't be factorized"
+            evs = o.edges_endpoint_variables()
+            if evs not in acc:
+                for aep in acc.keys():
+                    assert aep.isdisjoint(evs), \
+                        f"[SampleSpace.factorized] Sample spase which contains overlapping outcome can't be factorized"
+                acc[evs] = SampleSetBuilder(self._components_provider, {o: c})
+            else:
+                acc[evs].add(o, c)
+
+        return frozenset({b.build() for b in acc.values()})

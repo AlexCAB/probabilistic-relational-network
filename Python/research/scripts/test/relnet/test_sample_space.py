@@ -36,6 +36,7 @@ class TestSampleSpace(unittest.TestCase):
     o_3 = SampleGraphBuilder(bcp) \
         .add_relation({("a", "1"), ("b", "2")}, "r") \
         .build()
+    o_k_0 = SampleGraphBuilder(bcp).set_name("o_k_0").build_empty()
     ss_1 = SampleSpace(bcp, SampleSet(bcp, {o_1: 1, o_2: 2, o_3: 3}), "ss_1", None)
 
     def test_init(self):
@@ -129,6 +130,39 @@ class TestSampleSpace(unittest.TestCase):
         self.assertEqual(
             self.ss_1.find_for_values({("a", "1"), ("b", "2")}),
             SampleSet(self.bcp, {self.o_3: 3}))
+
+    def test_factorized(self):
+        o_ab_1 = SampleGraphBuilder(self.bcp).set_name("o_ab")\
+            .add_relation({("a", "1"), ("b", "2")}, "r")\
+            .build()
+        o_ab_2 = SampleGraphBuilder(self.bcp).set_name("o_ab") \
+            .add_relation({("a", "2"), ("b", "3")}, "r") \
+            .build()
+        o_bc = SampleGraphBuilder(self.bcp).set_name("o_bc")\
+            .add_relation({("b", "2"), ("c", "3")}, "r")\
+            .build()
+        o_abc = SampleGraphBuilder(self.bcp).set_name("o_abc")\
+            .add_relation({("a", "1"), ("b", "2")}, "r") \
+            .add_relation({("b", "2"), ("c", "3")}, "r") \
+            .build()
+
+        self.assertEqual(
+            SampleSpace(self.bcp, SampleSet(self.bcp, {o_ab_1: 1}), "ss_1", None).factorized(),
+            frozenset({SampleSet(self.bcp, {o_ab_1: 1})}))
+
+        self.assertEqual(
+            SampleSpace(self.bcp, SampleSet(self.bcp, {o_ab_1: 1, o_ab_2: 2}), "ss_2", None).factorized(),
+            frozenset({SampleSet(self.bcp, {o_ab_1: 1, o_ab_2: 2})}))
+
+        self.assertEqual(
+            SampleSpace(self.bcp, SampleSet(self.bcp, {o_ab_1: 1, o_ab_2: 2, o_bc: 3}), "ss_3", None).factorized(),
+            frozenset({SampleSet(self.bcp, {o_ab_1: 1, o_ab_2: 2}), SampleSet(self.bcp, {o_bc: 3})}))
+
+        with self.assertRaises(AssertionError):  # Overlapping outcomes
+            SampleSpace(self.bcp, SampleSet(self.bcp, {o_ab_1: 1, o_abc: 2}), "ss_4", None).factorized()
+
+        with self.assertRaises(AssertionError):  # Empty outcomes
+            SampleSpace(self.bcp, SampleSet(self.bcp, {o_ab_1: 1, self.o_k_0: 2}), "ss_5", None).factorized()
 
 
 if __name__ == '__main__':

@@ -42,6 +42,12 @@ class TestSamples(unittest.TestCase):
     def test_samples(self):
         self.assertEqual(self.s_1.samples(), {self.o_1, self.o_2})
 
+    def test_is_compatible(self):
+        self.assertTrue(
+            self.s_1.is_compatible(Samples(self.bcp, {})))
+        self.assertFalse(
+            self.s_1.is_compatible(Samples(MockSampleGraphComponentsProvider({"a": {"1"}}, {"r"}), {})))
+
 
 class TestSampleSet(unittest.TestCase):
 
@@ -93,6 +99,9 @@ class TestSampleSet(unittest.TestCase):
         u_1 = self.ss_1.union(ss_2)
 
         self.assertEqual(u_1.items(), {(self.o_1, 4), (self.o_2, 2), (o_4, 4)})
+
+        with self.assertRaises(AssertionError):  # Incompatible sample set
+            self.ss_1.union(SampleSet(MockSampleGraphComponentsProvider({"a": {"1"}}, {"r"}), {o_3: 3, o_4: 4}))
 
     def test_filter_samples(self):
         o_3 = SampleGraphBuilder(self.bcp).build_single_node("a", "1")
@@ -159,13 +168,31 @@ class TestSampleSet(unittest.TestCase):
             self.ss_2.probabilities(),
             {(self.o_3, 3 / (3 + 4)), (self.o_4, 4 / (3 + 4))})
 
+    def test_have_value(self):
+        self.assertTrue(self.ss_2.have_value("a", "1"))
+        self.assertTrue(self.ss_2.have_value("c", "1"))
+        self.assertFalse(self.ss_2.have_value("a", "not_in_sample"))
+        self.assertFalse(self.ss_2.have_value("not_in_sample", "1"))
+
+    def test_have_variable(self):
+        self.assertTrue(self.ss_2.have_variable("a"))
+        self.assertFalse(self.ss_2.have_variable("not_in_sample"))
+
 
 class TestSampleSetBuilder(unittest.TestCase):
 
-    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2", "3"}}, {"r"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
     sb_1 = SampleSetBuilder(bcp, {o_1: 1, o_2: 2})
+
+    def test_join_sample_set(self):
+        o_3 = SampleGraphBuilder(self.bcp).build_single_node("a", "3")
+        ss_1 = SampleSetBuilder(self.bcp, {self.o_1: 1, o_3: 3}).build()
+        ss_2 = SampleSetBuilder(self.bcp, {o_3: 3}).build()
+        self.assertEqual(
+            SampleSetBuilder.join_sample_set([self.sb_1.build(), ss_1, ss_2]),
+            SampleSetBuilder(self.bcp, {self.o_1: 2, self.o_2: 2, o_3: 6}).build())
 
     def test_init(self):
         self.assertEqual(self.sb_1.items(), {(self.o_1, 1), (self.o_2, 2)})
@@ -202,6 +229,9 @@ class TestSampleSetBuilder(unittest.TestCase):
 
     def test_length(self):
         self.assertEqual(self.sb_1.length(), 3)
+
+    def test_empty(self):
+        self.assertTrue(len(SampleSetBuilder(self.bcp).empty()) == 0)
 
     def test_build(self):
         bs_1 = self.sb_1.build()

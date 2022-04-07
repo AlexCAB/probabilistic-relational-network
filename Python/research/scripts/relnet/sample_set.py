@@ -55,6 +55,14 @@ class Samples:
         """
         return set(self._samples.keys())
 
+    def is_compatible(self, other: 'Samples') -> bool:
+        """
+        Validate if this samples compatible to other samples
+        :param other: other samples to be checked
+        :return: True if compatible, False otherwise
+        """
+        return id(self._components_provider) == id(other._components_provider)
+
 
 class SampleSet(Samples):
     """
@@ -68,6 +76,7 @@ class SampleSet(Samples):
     ):
         super(SampleSet, self).__init__(components_provider, samples.copy())
         self.length: int = sum(self._samples.values())
+        self._hash = hash(tuple(sorted([(hash(o), hash(c)) for o, c in samples.items()])))
 
     def __len__(self) -> int:
         return self.length
@@ -76,6 +85,9 @@ class SampleSet(Samples):
         if isinstance(other, SampleSet):
             return self._samples == other._samples
         return False
+
+    def __hash__(self):
+        return self._hash
 
     def __repr__(self):
         return "{\n" + '\n'.join(sorted([f"    {o}: {c}" for o, c in self._samples.items()])) + "\n}"
@@ -87,12 +99,16 @@ class SampleSet(Samples):
         """
         return SampleSetBuilder(self._components_provider, self._samples)
 
-    def union(self, other: 'SampleSet'):
+    def union(self, other: 'SampleSet') -> 'SampleSet':
         """
         Join all samples and the counts from this and other sample set and return as new one
         :param other: sample set to be joined
         :return: new sample set with all samples from this and other sample set
         """
+        assert self.is_compatible(other), \
+            f"[SampleSet.union] Incompatible sample sets can't be joined, " \
+            f"{self} incompatible to {other}"
+
         builder = self.builder()
         for s, c in other.items():
             builder.add(s, c)
@@ -143,6 +159,18 @@ class SampleSet(Samples):
 
         return grouped
 
+    def can_join_samples(self) -> bool:
+        """
+        Will join all contained samples to get new one which include all nodes and edges.
+        In case there is conflicting (same endpoint but different relation) AssertionError will be raise.
+        In case result sample graph will not connected AssertionError will be raise.
+        :return: (new_sample, list_of_counts)
+        """
+        for var in frozenset.intersection(*[s.included_variables for s in self.samples()]):
+            if len({s.value_for_variable(var) for s in self.samples()}) > 1:
+                return False
+        return True
+
     def make_joined_sample(self) -> Tuple[SampleGraph, List[int]]:
         """
         Will join all contained samples to get new one which include all nodes and edges.
@@ -184,11 +212,48 @@ class SampleSet(Samples):
             f"[SampleSet.probabilities] Expect all sample props to sum to 1 but got {p_sum}"
         return props
 
+    def have_value(self, variable: Any, value: Any) -> bool:
+        """
+         Check if given value are in this sample set
+        :param variable: variable which have value
+        :param value: value to be checked
+        :return: True if value in this sample set, False otherwise
+        """
+        for o in self._samples.keys():
+            if o.have_value(variable, value):
+                return True
+        return False
+
+    def have_variable(self, variable: Any) -> bool:
+        """
+        Check if given variable is in this sample set
+        :param variable: variable to be checked
+        :return: True if variable in this sample set, False otherwise
+        """
+        for o in self._samples.keys():
+            if o.have_variable(variable):
+                return True
+        return False
+
 
 class SampleSetBuilder(Samples):
     """
     Mutable builder of collection of samples with count
     """
+
+    @staticmethod
+    def join_sample_set(sample_sets: List[SampleSet]) -> SampleSet:
+        """
+        Will join multiple given sample sets in one
+        :param sample_sets: smple sets to be joined
+        :return: joined sample set
+        """
+        if len(sample_sets) > 1:
+            return sample_sets[0].union(SampleSetBuilder.join_sample_set(sample_sets[1:]))
+        else:
+            assert sample_sets, \
+                "[SampleSetBuilder.join_sample_set] Input sample_sets should not be empty"
+            return sample_sets[0]
 
     def __init__(
             self,
@@ -261,6 +326,13 @@ class SampleSetBuilder(Samples):
         :return: number of added samples
         """
         return sum(self._samples.values())
+
+    def empty(self) -> 'SampleSet':
+        """
+        To build empty immutable sample set
+        :return: sample set
+        """
+        return SampleSet(self._components_provider, {})
 
     def build(self) -> 'SampleSet':
         """

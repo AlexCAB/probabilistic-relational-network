@@ -31,6 +31,43 @@ class SampleGraphBuilder:
     Mutable builder for composing of the sample graphs
     """
 
+    @staticmethod
+    def is_edges_connected(edges: frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]]) -> bool:
+        """
+        Will to trace given edges to ensure that the graph they formed are connected
+        :param edges: Set[(endpoints, relation)]
+        :return: True if graph connected and False otherwise
+        """
+        tracing_map = defaultdict(set)
+        traced: Set[(Any, Any)] = set({})
+
+        for endpoints in [list(endpoints) for endpoints, _ in edges]:
+            assert len(endpoints) == 2, \
+                f"[SampleGraphBuilder.is_edges_connected] expect endpoints have exactly 2 node, got {endpoints}"
+            tracing_map[endpoints[0]].add(endpoints[1])
+            tracing_map[endpoints[1]].add(endpoints[0])
+
+        def trace(start_node: (Any, Any)):
+            if start_node not in traced:
+                traced.add(start_node)
+                for next_node in tracing_map[start_node]:
+                    trace(next_node)
+
+        trace(next(iter(tracing_map.keys())))
+        return len(tracing_map) == len(traced)
+
+    @staticmethod
+    def validate_endpoints(endpoints: frozenset[Tuple[Any, Any]]) -> None:
+        """
+        Will validate given endpoints and in case invalid will raise AssertionError
+        :param endpoints: frozenset[(variable, value))])
+        :return: None if all OK or raise AssertionError
+        """
+        assert len(endpoints) == 2, \
+            f"[SampleGraphBuilder.validate_endpoints] Exactly 2 endpoint should be passed, got {len(endpoints)}"
+        assert len({var for var, _ in endpoints}) == 2, \
+            f"[SampleGraphBuilder.validate_endpoints] Endpoints can't have same variable, got {endpoints}"
+
     def __init__(
             self,
             components_provider: SampleGraphComponentsProvider,
@@ -83,43 +120,6 @@ class SampleGraphBuilder:
             frozenset({self._components_provider.get_node(variable, value)}),
             frozenset({}),
             self._name)
-
-    @staticmethod
-    def is_edges_connected(edges: frozenset[Tuple[frozenset[Tuple[Any, Any]], Any]]) -> bool:
-        """
-        Will to trace given edges to ensure that the graph they formed are connected
-        :param edges: Set[(endpoints, relation)]
-        :return: True if graph connected and False otherwise
-        """
-        tracing_map = defaultdict(set)
-        traced: Set[(Any, Any)] = set({})
-
-        for endpoints in [list(endpoints) for endpoints, _ in edges]:
-            assert len(endpoints) == 2, \
-                f"[SampleGraphBuilder.is_edges_connected] expect endpoints have exactly 2 node, got {endpoints}"
-            tracing_map[endpoints[0]].add(endpoints[1])
-            tracing_map[endpoints[1]].add(endpoints[0])
-
-        def trace(start_node: (Any, Any)):
-            if start_node not in traced:
-                traced.add(start_node)
-                for next_node in tracing_map[start_node]:
-                    trace(next_node)
-
-        trace(next(iter(tracing_map.keys())))
-        return len(tracing_map) == len(traced)
-
-    @staticmethod
-    def validate_endpoints(endpoints: frozenset[Tuple[Any, Any]]) -> None:
-        """
-        Will validate given endpoints and in case invalid will raise AssertionError
-        :param endpoints: frozenset[(variable, value))])
-        :return: None if all OK or raise AssertionError
-        """
-        assert len(endpoints) == 2, \
-            f"[SampleGraphBuilder.validate_endpoints] Exactly 2 endpoint should be passed, got {len(endpoints)}"
-        assert len({var for var, _ in endpoints}) == 2, \
-            f"[SampleGraphBuilder.validate_endpoints] Endpoints can't have same variable, got {endpoints}"
 
     def build_from_edges(
             self,
@@ -511,3 +511,26 @@ class SampleGraph:
         :return: Set[(variable, value)]
         """
         return {n.var_val() for n in self.nodes}
+
+    def have_value(self, variable: Any, value: Any) -> bool:
+        """
+        Check if given value is in this sample
+        :param variable: variable which have value
+        :param value: value to be checked
+        :return: True if value in this sample, False otherwise
+        """
+        for n in self.nodes:
+            if n.var_val() == (variable, value):
+                return True
+        return False
+
+    def have_variable(self, variable: Any) -> bool:
+        """
+        Check if given variable is in this sample
+        :param variable: variable to be checked
+        :return: True if variable in this sample, False otherwise
+        """
+        for n in self.nodes:
+            if n.variable == variable:
+                return True
+        return False

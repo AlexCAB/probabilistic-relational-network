@@ -464,6 +464,15 @@ class TestSampleGraph(unittest.TestCase):
             self.s_3.values(),
             {("a", "1"), ("b", "1"), ("c", "1"), ("d", "1")})
 
+    def test_have_value(self):
+        self.assertTrue(self.s_3.have_value("a", "1"))
+        self.assertFalse(self.s_3.have_value("a", "not_in_sample"))
+        self.assertFalse(self.s_3.have_value("not_in_sample", "1"))
+
+    def test_have_variable(self):
+        self.assertTrue(self.s_3.have_variable("a"))
+        self.assertFalse(self.s_3.have_variable("not_in_sample"))
+
 
 if __name__ == '__main__':
     unittest.main()

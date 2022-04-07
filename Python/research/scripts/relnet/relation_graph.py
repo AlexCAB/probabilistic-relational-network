@@ -301,9 +301,40 @@ class RelationGraph(SampleSpace):
                 endpoint_acc.add(ep)
         return True
 
-    def make_joined(self) -> 'RelationGraph':
+    def make_joined(self, name: Optional[str] = None) -> 'RelationGraph':
         """
         Make relation graph which contains joined distribution from this factorized relation graph
         :return: New instance of relation graph which contains joined distribution
         """
-        pass
+
+        def join_factors(outcomes: List[Dict[SampleGraph, int]], acc: SampleSetBuilder) -> SampleSet:
+            if outcomes:
+                return SampleSetBuilder.join_sample_set(
+                    [join_factors(outcomes[1:], acc.copy().add(o, c)) for o, c in outcomes[0].items()])
+            else:
+                ss = acc.build()
+                if ss.can_join_samples():
+                    bo, cs = acc.build().make_joined_sample()
+                    return SampleSetBuilder(self._components_provider, {bo: prod(cs)}).build()
+                else:
+                    return SampleSetBuilder(self._components_provider).empty()
+
+        factors: frozenset[SampleSet] = self.factorized()
+
+        for var, values in self.included_variables():
+            factors_for_var = [f for f in factors if f.have_variable(var)]
+            joined_factor = SampleSetBuilder(self._components_provider)
+            for val in values:
+                joined_factor.add_all(join_factors(
+                    [{o: c for o, c in f.items() if o.have_value(var, val)} for f in factors_for_var],
+                    SampleSetBuilder(self._components_provider)))
+            factors = factors.difference(factors_for_var)
+            factors = factors.union(frozenset({joined_factor.build()}))
+
+        assert len(factors) <= 1, \
+            f"[RelationGraph.make_joined] Expect number of factors after joining to be 1 or 0, got {len(factors)}"
+
+        return RelationGraph(
+            self._components_provider,
+            name if name else self.name,
+            list(factors)[0] if factors else SampleSetBuilder(self._components_provider).empty())

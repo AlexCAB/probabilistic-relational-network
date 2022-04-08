@@ -277,6 +277,7 @@ class SampleGraph:
                 "{" + '; '.join(sorted([str(e) for e in self.edges] if self.edges else
                                        [str(n) for n in self.nodes])) + "}")
         self.included_variables: frozenset[Any] = frozenset({n.variable for n in nodes})
+        self.is_single_node: bool = not bool(edges)
         self.is_k_0: bool = not bool(nodes) and not bool(edges)
         self._components_provider: SampleGraphComponentsProvider = components_provider
 
@@ -504,6 +505,16 @@ class SampleGraph:
         :return: set of endpoints variables
         """
         return frozenset({frozenset({ep.variable for ep in e.endpoints}) for e in self.edges})
+
+    def single_node_variable(self) -> Any:
+        """
+        If this sample is single node then return variable of this node
+        :return: Variable of this sample
+        """
+        assert self.is_single_node, \
+            f"[SampleGraph.single_node_variable] This sample is not single node"
+
+        return list(self.nodes)[0].variable
 
     def values(self) -> Set[Tuple[Any, Any]]:
         """

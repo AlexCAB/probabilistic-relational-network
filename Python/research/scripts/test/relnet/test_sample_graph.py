@@ -269,6 +269,8 @@ class TestSampleGraph(unittest.TestCase):
         self.assertEqual(self.s_1.edges, frozenset({self.e_1}))
         self.assertEqual(self.s_1.hash, frozenset({self.a_1, self.b_1, self.e_1}))
         self.assertEqual(self.s_1.name, "s_1")
+        self.assertFalse(self.s_1.is_single_node)
+        self.assertTrue(self.s_2.is_single_node)
         self.assertFalse(self.s_1.is_k_0)
         self.assertTrue(self.s_k_0.is_k_0)
 
@@ -454,10 +456,13 @@ class TestSampleGraph(unittest.TestCase):
             self.s_1.variables_subgraph_hash({"a", "b"}),
             (frozenset({self.a_1, self.b_1, self.e_1})))
 
-    def test_edges_endpoint_variables(self):
+    def test_single_node_variable(self):
         self.assertEqual(
-            self.s_3.edges_endpoint_variables(),
-            frozenset({frozenset({"a", "b"}), frozenset({"a", "c"}), frozenset({"a", "d"})}))
+            self.s_2.single_node_variable(),
+            "a")
+
+        with self.assertRaises(AssertionError):
+            self.s_1.single_node_variable()
 
     def test_values(self):
         self.assertEqual(

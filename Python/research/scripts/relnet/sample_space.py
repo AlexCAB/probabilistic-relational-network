@@ -257,7 +257,7 @@ class SampleSpace:
         for o, c in self.outcomes.items():
             assert not o.is_k_0, \
                 f"[SampleSpace.factorized] Sample spase which contains empty outcome can't be factorized"
-            evs = o.edges_endpoint_variables()
+            evs = frozenset({o.single_node_variable()}) if o.is_single_node else o.edges_endpoint_variables()
             if evs not in acc:
                 for aep in acc.keys():
                     assert aep.isdisjoint(evs), \

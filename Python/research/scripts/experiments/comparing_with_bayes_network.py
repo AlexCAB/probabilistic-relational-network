@@ -185,7 +185,7 @@ def _compare_values_map(factor_values: Dict[frozenset[str], float], graph_values
 
 def comparing_joint_probability(bayes_net: BayesianNetwork, rel_graph: RelationGraph) -> None:
     joint_factor: DiscreteFactor = VariableElimination(bayes_net).query(variables=list(net_config.keys()))
-    joint_graph: RelationGraph = rel_graph.joined_on_variables()
+    joint_graph: RelationGraph = rel_graph.make_joined()
     joint_factor_len = sum(1 for _ in product(*[range(card) for card in joint_factor.cardinality]))
     joint_graph_len = len(joint_graph.outcomes.items())
 
@@ -220,7 +220,7 @@ def _run_inference_on(
             inf_graph_i = inf_graph_i.relation_graph()
         inf_graph_i = inf_graph_i \
             .conditional_graph(rel_graph.sample_builder().build_single_node(v, f"{v}(0)")) \
-            .relation_graph().joined_on_variables()
+            .relation_graph().make_joined()
 
     return _marginals_from_factor(inf_factor_i), inf_graph_i.marginal_variables_probability()
 
@@ -245,7 +245,7 @@ def comparing_inference(bayes_net: BayesianNetwork, rel_graph: RelationGraph) ->
 
 
 def comparing_d_separation(rel_graph: RelationGraph) -> None:
-    joint_graph: RelationGraph = rel_graph.joined_on_variables()
+    joint_graph: RelationGraph = rel_graph.make_joined()
     graph_marginals = joint_graph.marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] Joint relation graph:\n{joint_graph.print_samples()}")
@@ -253,7 +253,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     margin_graph_i = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .relation_graph().joined_on_variables()\
+        .relation_graph().make_joined()\
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_i = {margin_graph_i}")
@@ -265,7 +265,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     inf_graph_g = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('G', f"G(0)")) \
-        .relation_graph().joined_on_variables()
+        .relation_graph().make_joined()
     margin_graph_g = inf_graph_g.marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_g = {margin_graph_g}")
@@ -273,7 +273,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
     margin_graph_gi = inf_graph_g \
         .relation_graph()\
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .relation_graph().joined_on_variables() \
+        .relation_graph().make_joined() \
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_gi = {margin_graph_gi}")
@@ -283,7 +283,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
 
     inf_graph_l = rel_graph \
         .conditional_graph(rel_graph.sample_builder().build_single_node('L', f"L(0)")) \
-        .relation_graph().joined_on_variables()
+        .relation_graph().make_joined()
     margin_graph_l = inf_graph_l.marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_l = {margin_graph_l}")
@@ -291,7 +291,7 @@ def comparing_d_separation(rel_graph: RelationGraph) -> None:
     margin_graph_li = inf_graph_l \
         .relation_graph() \
         .conditional_graph(rel_graph.sample_builder().build_single_node('I', f"I(0)")) \
-        .relation_graph().joined_on_variables() \
+        .relation_graph().make_joined() \
         .marginal_variables_probability()
 
     print(f"[comparing_d_separation_v_shape] margin_graph_li = {margin_graph_li}")

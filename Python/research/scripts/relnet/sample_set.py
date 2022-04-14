@@ -63,6 +63,15 @@ class Samples:
         """
         return id(self._components_provider) == id(other._components_provider)
 
+    def count_of(self, sample: SampleGraph) -> int:
+        """
+        Get count for given sample
+        :param sample: given sample
+        :return: count of given sample
+        """
+        assert sample in self._samples, f"[Samples.count_of] No sample {sample} in this sample set"
+        return self._samples[sample]
+
 
 class SampleSet(Samples):
     """
@@ -234,6 +243,15 @@ class SampleSet(Samples):
             if o.have_variable(variable):
                 return True
         return False
+
+    def probability_of(self, sample: SampleGraph) -> float:
+        """
+        Get probability for given sample
+        :param sample: given sample
+        :return: probability of sample
+        """
+        assert sample in self._samples, f"[SampleSet.probability_of] No sample {sample} in this sample set"
+        return self._samples[sample] / self.length
 
 
 class SampleSetBuilder(Samples):

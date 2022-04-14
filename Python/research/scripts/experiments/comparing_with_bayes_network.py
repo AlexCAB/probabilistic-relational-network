@@ -17,6 +17,7 @@ author: CAB
 website: github.com/alexcab
 created: 2021-10-12
 """
+
 from math import isclose
 from typing import Any, Dict, Tuple, List
 

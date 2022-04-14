@@ -27,9 +27,10 @@ from scripts.test.relnet.test_graph_components import MockSampleGraphComponentsP
 
 class TestSamples(unittest.TestCase):
 
-    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2"}}, {"r"})
+    bcp = MockSampleGraphComponentsProvider({"a": {"1", "2", "3"}}, {"r"})
     o_1 = SampleGraphBuilder(bcp).build_single_node("a", "1")
     o_2 = SampleGraphBuilder(bcp).build_single_node("a", "2")
+    o_3 = SampleGraphBuilder(bcp).build_single_node("a", "3")
     s_1 = Samples(bcp, {o_1: 1, o_2: 2})
 
     def test_bool(self):
@@ -47,6 +48,12 @@ class TestSamples(unittest.TestCase):
             self.s_1.is_compatible(Samples(self.bcp, {})))
         self.assertFalse(
             self.s_1.is_compatible(Samples(MockSampleGraphComponentsProvider({"a": {"1"}}, {"r"}), {})))
+
+    def test_count_of(self):
+        self.assertEqual(self.s_1.count_of(self.o_2), 2)
+
+        with self.assertRaises(AssertionError):  # Sample not in set
+            self.s_1.count_of(self.o_3)
 
 
 class TestSampleSet(unittest.TestCase):
@@ -177,6 +184,12 @@ class TestSampleSet(unittest.TestCase):
     def test_have_variable(self):
         self.assertTrue(self.ss_2.have_variable("a"))
         self.assertFalse(self.ss_2.have_variable("not_in_sample"))
+
+    def test_probability_of(self):
+        self.assertEqual(self.ss_1.probability_of(self.o_2), 0.6666666666666666)
+
+        with self.assertRaises(AssertionError):  # Sample not in set
+            self.ss_1.probability_of(self.o_3)
 
 
 class TestSampleSetBuilder(unittest.TestCase):

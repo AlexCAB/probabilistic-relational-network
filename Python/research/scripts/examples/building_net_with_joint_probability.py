@@ -18,23 +18,11 @@ website: github.com/alexcab
 created: 2022-04-14
 """
 
-from math import isclose
-from typing import Any, Dict, Tuple, List
-
-from scripts.relnet.graph_components import DirectedRelation
-from scripts.relnet.conditional_graph import ConditionalGraph
-from scripts.relnet.relation_graph import RelationGraph, RelationGraphBuilder
-
-from pgmpy.inference import VariableElimination
-from pgmpy.models import BayesianNetwork
-from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
-
-from scripts.relnet.sample_graph import SampleGraph
-from itertools import product
-
-
-
+from scripts.examples.building_net_from_coin_toss import build_relation_net, experiment_results, describe_relation_net
 
 
 if __name__ == '__main__':
-    pass
+    Θ = build_relation_net(experiment_results)
+    Θ_hat = Θ.make_joined()
+    describe_relation_net(Θ_hat)
+    Θ_hat.visualize_outcomes()

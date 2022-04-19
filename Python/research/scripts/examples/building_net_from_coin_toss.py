@@ -74,7 +74,11 @@ def build_outcome(t: str, builder: SampleGraphBuilder) -> SampleGraph:
         case [var_1, val_1]:
             return builder.build_single_node(*pare_var(var_1, val_1))
         case [var_1, val_1, _, var_2, val_2]:
-            return builder.add_relation({pare_var(var_1, val_1), pare_var(var_2, val_2)}, "r1").build()
+            return builder\
+                .add_relation(
+                    {pare_var(var_1, val_1), pare_var(var_2, val_2)},
+                    ('r1' if int(var_1[:-1]) < int(var_2[:-1]) else 'r2'))\
+                .build()
 
 
 def build_relation_net(T: List[str]) -> RelationGraph:
@@ -90,7 +94,7 @@ def build_relation_net(T: List[str]) -> RelationGraph:
 
 
 def describe_relation_net(Θ: RelationGraph) -> None:
-    print(f"Built outcomes:")
+    print(f"Outcomes:")
     for ω, c in Θ.outcomes.items():
         print(f"    ω = {ω}, c = {c}, P(ω) = {Θ.outcomes.count_of(ω) / Θ.outcomes.length}")
 

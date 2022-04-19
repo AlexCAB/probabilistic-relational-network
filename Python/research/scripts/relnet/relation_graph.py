@@ -325,8 +325,9 @@ class RelationGraph(SampleSpace):
             factors_for_var = [f for f in factors if f.have_variable(var)]
             joined_factor = SampleSetBuilder(self._components_provider)
             for val in values:
+                outcomes_for_val = [{o: c for o, c in f.items() if o.have_value(var, val)} for f in factors_for_var]
                 joined_factor.add_all(join_factors(
-                    [{o: c for o, c in f.items() if o.have_value(var, val)} for f in factors_for_var],
+                    [os for os in outcomes_for_val if os],
                     SampleSetBuilder(self._components_provider)))
             factors = factors.difference(factors_for_var)
             factors = factors.union(frozenset({joined_factor.build()}))

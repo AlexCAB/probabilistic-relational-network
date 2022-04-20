@@ -120,7 +120,7 @@ class DirectedRelation:
         return (self.source_variable, self.target_variable, self.relation).__hash__()
 
     def __repr__(self):
-        return f"{self.target_variable}[{self.source_variable}->{self.relation}]"
+        return f"{self.relation}[{self.source_variable}->{self.target_variable}]"
 
     def __copy__(self):
         raise AssertionError(

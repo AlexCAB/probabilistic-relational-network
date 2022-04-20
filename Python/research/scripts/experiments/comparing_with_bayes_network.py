@@ -46,7 +46,7 @@ net_config = {
               [.9, .6, .01]], ['G'], [3])   # Latter
 }
 
-prop_factor = 100  # User to convert float probability to int number of outcomes
+prop_factor = 100  # Used to convert float probability to int number of outcomes
 
 
 def make_bayes_network() -> BayesianNetwork:

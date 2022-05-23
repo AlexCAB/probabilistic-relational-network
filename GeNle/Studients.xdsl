@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This network was created in trial version of GeNIe, which can be used for evaluation purposes only -->
+<smile version="1.0" id="Network2" numsamples="10000" discsamples="10000">
+	<nodes>
+		<cpt id="D">
+			<state id="d0" />
+			<state id="d1" />
+			<probabilities>0.6 0.4</probabilities>
+		</cpt>
+		<cpt id="I">
+			<state id="i0" />
+			<state id="i1" />
+			<probabilities>0.7 0.3</probabilities>
+		</cpt>
+		<cpt id="G">
+			<state id="g0" />
+			<state id="g1" />
+			<state id="g2" />
+			<parents>D I</parents>
+			<probabilities>0.3 0.4 0.3 0.9 0.08 0.02 0.05 0.25 0.7 0.5 0.3 0.2</probabilities>
+		</cpt>
+		<cpt id="S">
+			<state id="s0" />
+			<state id="s1" />
+			<parents>I</parents>
+			<probabilities>0.95 0.05 0.2 0.8</probabilities>
+		</cpt>
+		<cpt id="L">
+			<state id="i0" />
+			<state id="i1" />
+			<parents>G</parents>
+			<probabilities>0.1 0.9 0.4 0.6 0.99 0.01</probabilities>
+		</cpt>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 3.0.6518.2 EVALUATION" name="Studients">
+			<node id="D">
+				<name>D</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>60 140 135 184</position>
+			</node>
+			<node id="I">
+				<name>I</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>200 140 275 180</position>
+			</node>
+			<node id="G">
+				<name>G</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>140 240 215 280</position>
+			</node>
+			<node id="S">
+				<name>S</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>260 240 335 280</position>
+			</node>
+			<node id="L">
+				<name>L</name>
+				<interior color="e5f6f7" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="8" />
+				<position>140 340 215 380</position>
+			</node>
+		</genie>
+	</extensions>
+</smile>

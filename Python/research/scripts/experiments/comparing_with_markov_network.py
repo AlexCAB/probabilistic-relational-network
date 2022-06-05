@@ -82,12 +82,12 @@ def make_relation_graph() -> RelationGraph:
     return rel_graph
 
 
-def normalize(values: Dict[Any, int]) -> Dict[Any, float]:
+def _normalize(values: Dict[Any, int]) -> Dict[Any, float]:
     total = float(sum(values.values()))
     return {k: v / total for k, v in values.items()}
 
 
-def get_markov_prop(factor: DiscreteFactor) -> Dict[Tuple[int, int, int], float]:
+def _get_markov_prop(factor: DiscreteFactor) -> Dict[Tuple[int, int, int, int], float]:
     fc = factor.copy()
     fc.normalize()
     return {
@@ -96,11 +96,15 @@ def get_markov_prop(factor: DiscreteFactor) -> Dict[Tuple[int, int, int], float]
         if factor.get_value(A=a, B=b, C=c, D=d) > 0}
 
 
-def get_relation_graph_prop(relation_graph: RelationGraph) -> Dict[Tuple[int, int, int], float]:
+def _get_relation_graph_prop(relation_graph: RelationGraph) -> Dict[Tuple[int, int, int, int], float]:
     all_counts = {(a, b, c, d):  relation_graph.find_for_values(
         {("A", f"A({a})"), ("B", f"B({b})"), ("C", f"C({c})"), ("D", f"D({d})")})
         for a, b, c, d in joined_values}
-    return normalize({k: float(c.items().pop()[1]) for k, c in all_counts.items() if c})
+    return _normalize({k: float(c.items().pop()[1]) for k, c in all_counts.items() if c})
+
+
+def _format_prop(prop: Dict[Tuple[int, int, int, int], float]) -> [str]:
+    return sorted([f"P(A_{vs[0]}, B_{vs[1]}, C_{vs[2]}, D_{vs[3]}) = {p}" for vs, p in prop.items()])
 
 
 def comparing_variable_joint_probability(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> None:
@@ -118,11 +122,11 @@ def comparing_variable_joint_probability(markov_net: MarkovNetwork, rel_graph: R
 
     joint_markov.normalize()
 
-    joint_markov_prop = get_markov_prop(joint_markov)
-    joint_relation_graph_prop = get_relation_graph_prop(joint_relation_graph)
+    joint_markov_prop = _get_markov_prop(joint_markov)
+    joint_relation_graph_prop = _get_relation_graph_prop(joint_relation_graph)
 
-    print(f"Joint markov prop:         {joint_markov_prop}")
-    print(f"Joint relation graph prop: {joint_relation_graph_prop}")
+    print(f"Joint markov prop:         {_format_prop(joint_markov_prop)}")
+    print(f"Joint relation graph prop: {_format_prop(joint_relation_graph_prop)}")
 
     assert joint_markov_prop == joint_relation_graph_prop, "Expect evaluated probabilities to be same"
 
@@ -159,16 +163,16 @@ def comparing_inference(markov_net: MarkovNetwork, rel_graph: RelationGraph) -> 
     print(f"Join inference graph on A_0:\n{joint_inference_graph.print_samples()}")
     # joint_inference_graph.visualize_outcomes()
 
-    joint_markov_prop = get_markov_prop(joint_markov)
-    joint_inference_prop = get_relation_graph_prop(joint_inference_graph.relation_graph())
+    joint_markov_prop = _get_markov_prop(joint_markov)
+    joint_inference_prop = _get_relation_graph_prop(joint_inference_graph.relation_graph())
 
-    print(f"joint_markov_prop = {joint_markov_prop}")
-    print(f"joint_inference_prop = {joint_inference_prop}")
+    print(f"Inference E=A_0 markov prop = {_format_prop(joint_markov_prop)}")
+    print(f"Inference E=A_0 relation graph prop = {_format_prop(joint_inference_prop)}")
 
     assert joint_markov_prop == joint_inference_prop, "Expect evaluated probabilities to be same"
 
 
-def markov_d_separation(markov_net: MarkovNetwork) -> None:
+def markov_separation(markov_net: MarkovNetwork) -> None:
     ab_factor: DiscreteFactor = markov_net.factors[0].copy()
     bc_factor: DiscreteFactor = markov_net.factors[1].copy()
     cd_factor: DiscreteFactor = markov_net.factors[2].copy()
@@ -226,7 +230,7 @@ def markov_d_separation(markov_net: MarkovNetwork) -> None:
     assert margin_ac_b == margin_acb_b, "Expect evaluated probabilities to be same"
 
 
-def relation_graph_d_separation(rel_graph: RelationGraph) -> None:
+def relation_graph_separation(rel_graph: RelationGraph) -> None:
     inference_on_a: ConditionalGraph = rel_graph.conditional_graph(
         rel_graph.sample_builder().build_single_node("A", "A(0)"))
     inference_on_ac: ConditionalGraph = inference_on_a.relation_graph().conditional_graph(
@@ -265,5 +269,5 @@ if __name__ == '__main__':
     rg = make_relation_graph()
     comparing_variable_joint_probability(mn, rg)
     comparing_inference(mn, rg)
-    markov_d_separation(mn)
-    relation_graph_d_separation(rg)
+    markov_separation(mn)
+    relation_graph_separation(rg)
